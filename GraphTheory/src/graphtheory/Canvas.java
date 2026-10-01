@@ -150,6 +150,25 @@ public class Canvas {
                         v.draw(graphic);
                         break;
                     }
+                }
+            //refresh();
+            }
+
+
+        }
+
+        @Override
+        public void mouseEntered(MouseEvent e) {
+        }
+
+        @Override
+        public void mouseExited(MouseEvent e) {
+        }
+
+        @Override
+        public void mousePressed(MouseEvent e) {
+            if (selectedWindow == 0 && vertexList.size() > 0) {
+                switch (selectedTool) {
                     case 4: {
                         Vertex target = null;
                         for (Vertex v : vertexList) {
@@ -171,25 +190,6 @@ public class Canvas {
                         refresh();
                         break;
                     }
-                }
-            //refresh();
-            }
-
-
-        }
-
-        @Override
-        public void mouseEntered(MouseEvent e) {
-        }
-
-        @Override
-        public void mouseExited(MouseEvent e) {
-        }
-
-        @Override
-        public void mousePressed(MouseEvent e) {
-            if (selectedWindow == 0 && vertexList.size() > 0) {
-                switch (selectedTool) {
                     case 2: {
                         for (Vertex v : vertexList) {
                             if (v.hasIntersection(e.getX(), e.getY())) {
