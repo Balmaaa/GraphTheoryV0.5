@@ -85,8 +85,8 @@ public class Canvas {
         item.addActionListener(new MenuListener());
         menuOptions.add(item);
         item = new JMenuItem("Remove Tool");
+        item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_R, KeyEvent.CTRL_DOWN_MASK));
         item.addActionListener(new MenuListener());
-        item.setEnabled(false);
         menuOptions.add(item);
         item = new JMenuItem("Auto Arrange Vertices");
         item.addActionListener(new MenuListener());
@@ -145,30 +145,31 @@ public class Canvas {
             if (selectedWindow == 0) {
                 switch (selectedTool) {
                     case 1: {
-                        Vertex v = new Vertex("" + vertexList.size(), e.getX(), e.getY());
+                        Vertex v = new Vertex(nextVertexName(), e.getX(), e.getY());
                         vertexList.add(v);
                         v.draw(graphic);
                         break;
                     }
                     case 4: {
-
-                        /* for (Vertex v : vertexList) {
-                        if (v.hasIntersection(e.getX(), e.getY())) {
-                        {
-                        for (Edge d : edgeList) {
-                        if (d.vertex1 == v || d.vertex2 == v) {
-                        edgeList.remove(d);
+                        Vertex target = null;
+                        for (Vertex v : vertexList) {
+                            if (v.hasIntersection(e.getX(), e.getY())) {
+                                target = v;
+                            }
                         }
+                        if (target != null) {
+                            removeVertex(target);
+                        } else {
+                            for (Edge d : edgeList) {
+                                if (d.hasIntersection(e.getX(), e.getY())) {
+                                    removeEdge(d);
+                                    break;
+                                }
+                            }
                         }
-                        for (Vertex x : vertexList) {
-                        if (x.connectedToVertex(v)) {
-                        x.connectedVertices.remove(v);
-                        }
-                        }
-                        vertexList.remove(v);
-                        }
-                        }
-                        }*/ break;
+                        erase();
+                        refresh();
+                        break;
                     }
                 }
             //refresh();
@@ -537,6 +538,40 @@ public class Canvas {
             }
         }
 
+    }
+
+    private String nextVertexName() {
+        int n = vertexList.size();
+        boolean taken = true;
+        while (taken) {
+            taken = false;
+            for (Vertex v : vertexList) {
+                if (v.name.equals("" + n)) {
+                    taken = true;
+                    n++;
+                    break;
+                }
+            }
+        }
+        return "" + n;
+    }
+
+    private void removeVertex(Vertex v) {
+        for (Edge d : new Vector<Edge>(edgeList)) {
+            if (d.vertex1 == v || d.vertex2 == v) {
+                removeEdge(d);
+            }
+        }
+        vertexList.remove(v);
+        clickedVertexIndex = 0;
+        clickedEdgeIndex = 0;
+    }
+
+    private void removeEdge(Edge d) {
+        edgeList.remove(d);
+        d.vertex1.connectedVertices.remove(d.vertex2);
+        d.vertex2.connectedVertices.remove(d.vertex1);
+        clickedEdgeIndex = 0;
     }
 
     private void loadFile(Vector<Vector> File) {

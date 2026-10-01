@@ -24,3 +24,4 @@ Degree is written `vertex:degree(in/out)`. In an undirected graph, in = out = de
 1. **Directed edges:** Tools → Add Vertex (Ctrl+A) and click three times. Tick **Tools → Directed Edges**, choose Add Edges (Ctrl+E), then drag 0→1 and 1→2. Arrowheads point at the target vertex. Properties shows `0:1(0/1), 1:2(1/1), 2:1(1/0)`.
 2. **Undirected edges:** untick Directed Edges and drag 2→0. The new line has no arrow, and every vertex's in and out counts go up by 1.
 3. **Highlight reset:** run Find Bridges, then Find Isolated Nodes. Only the isolated nodes stay red.
+4. **Remove Tool:** Tools → Remove Tool (Ctrl+R). Click a vertex to delete it together with its edges, or click an edge to delete only that edge. Vertex Count and Edge Count update at once, and Properties reflects the change.

@@ -66,36 +66,15 @@ public class Edge {
     }
 
     public boolean hasIntersection(int x, int y) {
-        int x1, x2, y1, y2;
-        x1 = vertex1.location.x;
-        x2 = vertex2.location.x;
-        y1 = vertex1.location.y;
-        y2 = vertex2.location.y;
-        float slope = 0;
-        if (x2 != x1) {
-            slope = (y2 - y1) / (x2 - x1);
-        }
-
-        float b = Math.abs(x1 * slope - y1);
-
-        if (y + b <= Math.round(slope * x) + 10 && y + b >= Math.round(slope * x) - 10) {
-            if (x1 > x2 && y1 > y2) {
-                if (x <= x1 && x >= x2 && y <= y1 && y >= y2) {
-                    return true;
-                }
-            } else if (x1 < x2 && y1 > y2) {
-                if (x <= x2 && x >= x1 && y <= y1 && y >= y2) {
-                    return true;
-                }
-            } else if (x1 < x2 && y1 < y2) {
-                if (x <= x2 && x >= x1 && y <= y2 && y >= y1) {
-                    return true;
-                }
-            } else if (x <= x1 && x >= x2 && y <= y2 && y >= y1) {
-                return true;
-            }
-        }
-        return false;
-
+        double x1 = vertex1.location.x;
+        double y1 = vertex1.location.y;
+        double dx = vertex2.location.x - x1;
+        double dy = vertex2.location.y - y1;
+        double lengthSquared = dx * dx + dy * dy;
+        double t = lengthSquared == 0 ? 0 : ((x - x1) * dx + (y - y1) * dy) / lengthSquared;
+        t = Math.max(0, Math.min(1, t));
+        double distX = x - (x1 + t * dx);
+        double distY = y - (y1 + t * dy);
+        return distX * distX + distY * distY <= 8 * 8;
     }
 }
