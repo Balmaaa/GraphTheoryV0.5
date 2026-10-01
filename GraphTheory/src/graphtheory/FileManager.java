@@ -29,7 +29,7 @@ public class FileManager {
 
     }
 
-    public void saveFile(Vector<Vertex> vList, File fName) {
+    public void saveFile(Vector<Vertex> vList, Vector<Edge> eList, File fName) {
         try {
             BufferedWriter out = new BufferedWriter(new FileWriter(fName));
 
@@ -39,13 +39,19 @@ public class FileManager {
                 out.write(v.name);
                 out.newLine();
             }
+            // row i, column j is 1 when an edge goes from i to j (both ways for undirected edges)
+            int[][] matrix = new int[vList.size()][vList.size()];
+            for (Edge e : eList) {
+                int a = vList.indexOf(e.vertex1);
+                int b = vList.indexOf(e.vertex2);
+                matrix[a][b] = 1;
+                if (!e.directed) {
+                    matrix[b][a] = 1;
+                }
+            }
             for (int i = 0; i < vList.size(); i++) {
                 for (int j = 0; j < vList.size(); j++) {
-                    if (vList.get(i).connectedToVertex(vList.get(j))) {
-                        out.write("1");
-                    } else {
-                        out.write("0");
-                    }
+                    out.write("" + matrix[i][j]);
                 }
                 out.newLine();
             }
@@ -75,20 +81,28 @@ public class FileManager {
                     vertexList.add(v);
                 }
 
+                String[] adjacencyLines = new String[vertexList.size()];
+                for (int j = 0; j < vertexList.size(); j++) {
+                    adjacencyLines[j] = data.nextLine();
+                    System.out.println(adjacencyLines[j]);
+                }
+
                 for (int j = 0; j < vertexList.size(); j++) { // adjacency list
-                    String adjacencyLine = data.nextLine();
-                    System.out.println(adjacencyLine);
                     for (int k = 0; k < vertexList.size(); k++) {
-                        if (adjacencyLine.charAt(k) == '1') {
+                        if (adjacencyLines[j].charAt(k) == '1' || adjacencyLines[k].charAt(j) == '1') {
                             vertexList.get(j).addVertex(vertexList.get(k));
                         }
                     }
 
-
                     for (int l = j + 1; l < vertexList.size(); l++) { //edges
-                        if (adjacencyLine.charAt(l) == '1') {
-                            Edge e = new Edge(vertexList.get(j), vertexList.get(l));
-                            edgeList.add(e);
+                        boolean forward = adjacencyLines[j].charAt(l) == '1';
+                        boolean backward = adjacencyLines[l].charAt(j) == '1';
+                        if (forward && backward) {
+                            edgeList.add(new Edge(vertexList.get(j), vertexList.get(l)));
+                        } else if (forward) {
+                            edgeList.add(new Edge(vertexList.get(j), vertexList.get(l), true));
+                        } else if (backward) {
+                            edgeList.add(new Edge(vertexList.get(l), vertexList.get(j), true));
                         }
                     }
                 }

@@ -35,6 +35,8 @@ public class Canvas {
     private Vector<Vertex> vertexList;
     private Vector<Edge> edgeList;
     private GraphProperties gP = new GraphProperties();
+    private boolean directedMode;
+    private Vector<String> propertyLines = new Vector<String>();
     /////////////
 
     public Canvas(String title, int width, int height, Color bgColour) {
@@ -75,6 +77,9 @@ public class Canvas {
         item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_E, KeyEvent.CTRL_DOWN_MASK));
         item.addActionListener(new MenuListener());
         menuOptions.add(item);
+        JCheckBoxMenuItem directedItem = new JCheckBoxMenuItem("Directed Edges");
+        directedItem.addActionListener(new MenuListener());
+        menuOptions.add(directedItem);
         item = new JMenuItem("Grab Tool");
         item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_G, KeyEvent.CTRL_DOWN_MASK));
         item.addActionListener(new MenuListener());
@@ -91,6 +96,9 @@ public class Canvas {
         item.addActionListener(new MenuListener());
         menuOptions2.add(item);
         item = new JMenuItem("Find Isolated Nodes");
+        item.addActionListener(new MenuListener());
+        menuOptions2.add(item);
+        item = new JMenuItem("Find Cutpoints");
         item.addActionListener(new MenuListener());
         menuOptions2.add(item);
         item = new JMenuItem("Find Bridges");
@@ -225,7 +233,7 @@ public class Canvas {
                         Vertex parentV = vertexList.get(clickedVertexIndex);
                         for (Vertex v : vertexList) {
                             if (v.hasIntersection(e.getX(), e.getY()) && v != parentV && !v.connectedToVertex(parentV)) {              //System.out.println(clickedVertexIndex+" "+vertexList.indexOf(v));
-                                Edge edge = new Edge(v, parentV);
+                                Edge edge = new Edge(parentV, v, directedMode);
                                 v.addVertex(parentV);
                                 parentV.addVertex(v);
                                 v.wasClicked = false;
@@ -303,6 +311,8 @@ public class Canvas {
                 selectedTool = 1;
             } else if (command.equals("Add Edges")) {
                 selectedTool = 2;
+            } else if (command.equals("Directed Edges")) {
+                directedMode = ((JCheckBoxMenuItem) e.getSource()).isSelected();
             } else if (command.equals("Grab Tool")) {
                 selectedTool = 3;
             } else if (command.equals("Remove Tool")) {
@@ -317,6 +327,7 @@ public class Canvas {
                 erase();
             } else if (command.equals("Find Isolated Nodes")) {
                 if (vertexList.size() > 0) {
+                    clearHighlights();
                     Vector<Vertex> isolatedNodes = gP.findIsolatedNodes(vertexList);
                     System.out.println("=== ISOLATED NODES ===");
                     if (isolatedNodes.isEmpty()) {
@@ -329,8 +340,24 @@ public class Canvas {
                     }
                     erase();
                 }
+            } else if (command.equals("Find Cutpoints")) {
+                if (vertexList.size() > 0) {
+                    clearHighlights();
+                    Vector<Vertex> cutpoints = gP.findCutpoints(vertexList);
+                    System.out.println("=== CUTPOINTS ===");
+                    if (cutpoints.isEmpty()) {
+                        System.out.println("No cutpoints found.");
+                    } else {
+                        for (Vertex v : cutpoints) {
+                            System.out.println("Cutpoint: " + v.name);
+                            v.wasClicked = true;
+                        }
+                    }
+                    erase();
+                }
             } else if (command.equals("Find Bridges")) {
                 if (vertexList.size() > 0 && edgeList.size() > 0) {
+                    clearHighlights();
                     Vector<Edge> bridges = gP.findBridges(vertexList, edgeList);
                     System.out.println("=== BRIDGES ===");
                     if (bridges.isEmpty()) {
@@ -361,7 +388,7 @@ public class Canvas {
             } else if (command.equals("Save to File")) {
                 int returnValue = fileManager.jF.showSaveDialog(frame);
                 if (returnValue == JFileChooser.APPROVE_OPTION) {
-                    fileManager.saveFile(vertexList,fileManager.jF.getSelectedFile());
+                    fileManager.saveFile(vertexList, edgeList, fileManager.jF.getSelectedFile());
                     System.out.println(fileManager.jF.getSelectedFile());
                 }
             } else if (command.equals("Graph")) {
@@ -369,7 +396,9 @@ public class Canvas {
                 erase();
             } else if (command.equals("Properties")) {
                 selectedWindow = 1;
+                propertyLines = new Vector<String>();
                 if (vertexList.size() > 0) {
+                    clearHighlights();
                     //adjacency list
                     int[][] matrix = gP.generateAdjacencyMatrix(vertexList, edgeList);
 
@@ -386,38 +415,93 @@ public class Canvas {
                     //VD paths
                     gP.displayContainers(vertexList);
                 //gP.drawNWideDiameter();
-                
-                // New properties
-                System.out.println("=== NEW GRAPH PROPERTIES ===");
-                System.out.println("Components (k(G)): " + gP.countComponents(vertexList));
-                System.out.println("Edge-Connectivity (lambda(G)): " + gP.calculateEdgeConnectivity(vertexList, edgeList));
-                System.out.println("Density: " + String.format("%.4f", gP.calculateDensity(vertexList, edgeList)));
-                
-                Vector<Vertex> isolatedNodes = gP.findIsolatedNodes(vertexList);
-                if (!isolatedNodes.isEmpty()) {
-                    System.out.println("Isolated Nodes: " + isolatedNodes.size());
-                    for (Vertex v : isolatedNodes) {
-                        System.out.println("  - " + v.name);
+
+                    printDegrees();
+                    gP.printGeodesics(vertexList);
+                    buildPropertyLines(tempList.size());
+                    System.out.println("=== GRAPH PROPERTIES ===");
+                    for (String line : propertyLines) {
+                        System.out.println(line);
                     }
-                } else {
-                    System.out.println("Isolated Nodes: None");
-                }
-                
-                Vector<Edge> bridges = gP.findBridges(vertexList, edgeList);
-                if (!bridges.isEmpty()) {
-                    System.out.println("Bridges: " + bridges.size());
-                    for (Edge bridge : bridges) {
-                        System.out.println("  - " + bridge.vertex1.name + " - " + bridge.vertex2.name);
-                    }
-                } else {
-                    System.out.println("Bridges: None");
-                }
                 }
                 erase();
             }
 
             refresh();
         }
+    }
+
+    private void clearHighlights() {
+        for (Vertex v : vertexList) {
+            v.wasClicked = false;
+        }
+        for (Edge d : edgeList) {
+            d.wasClicked = false;
+        }
+    }
+
+    private void printDegrees() {
+        System.out.println("=== DEGREES ===");
+        for (Vertex v : vertexList) {
+            System.out.println("Vertex " + v.name + ": degree=" + v.getDegree()
+                    + " in-degree=" + gP.getInDegree(v, edgeList)
+                    + " out-degree=" + gP.getOutDegree(v, edgeList));
+        }
+    }
+
+    private void buildPropertyLines(int vertexConnectivity) {
+        propertyLines = new Vector<String>();
+        propertyLines.add("Order |V| = " + vertexList.size() + "    Size |E| = " + edgeList.size());
+        propertyLines.add("Components k(G) = " + gP.countComponents(vertexList)
+                + "    Connected: " + (gP.isConnected(vertexList) ? "Yes" : "No"));
+        propertyLines.add("Connectivity K(G) = " + vertexConnectivity
+                + "    Edge-Connectivity lambda(G) = " + gP.calculateEdgeConnectivity(vertexList, edgeList));
+        propertyLines.add("Density = " + String.format("%.4f", gP.calculateDensity(vertexList, edgeList))
+                + " (" + gP.classifyDensity(vertexList, edgeList) + ")");
+
+        StringBuilder names = new StringBuilder();
+        Vector<Vertex> isolatedNodes = gP.findIsolatedNodes(vertexList);
+        for (Vertex v : isolatedNodes) {
+            names.append(names.length() > 0 ? ", " : "").append(v.name);
+        }
+        addWrapped("Isolated Nodes (" + isolatedNodes.size() + "): " + (isolatedNodes.isEmpty() ? "None" : names));
+
+        names = new StringBuilder();
+        Vector<Vertex> cutpoints = gP.findCutpoints(vertexList);
+        for (Vertex v : cutpoints) {
+            names.append(names.length() > 0 ? ", " : "").append(v.name);
+        }
+        addWrapped("Cutpoints (" + cutpoints.size() + "): " + (cutpoints.isEmpty() ? "None" : names));
+
+        names = new StringBuilder();
+        Vector<Edge> bridges = gP.findBridges(vertexList, edgeList);
+        for (Edge d : bridges) {
+            names.append(names.length() > 0 ? ", " : "").append(d.vertex1.name).append("-").append(d.vertex2.name);
+        }
+        addWrapped("Bridges (" + bridges.size() + "): " + (bridges.isEmpty() ? "None" : names));
+
+        names = new StringBuilder();
+        for (Vertex v : vertexList) {
+            names.append(names.length() > 0 ? ", " : "").append(v.name).append(":").append(v.getDegree())
+                    .append("(").append(gP.getInDegree(v, edgeList)).append("/").append(gP.getOutDegree(v, edgeList)).append(")");
+        }
+        addWrapped("Degree (in/out): " + names);
+        propertyLines.add("See output console for walks, paths, geodesics and diameter.");
+    }
+
+    private void addWrapped(String text) {
+        int maxChars = 62;
+        while (text.length() > maxChars) {
+            int cut = text.lastIndexOf(", ", maxChars);
+            if (cut <= 0) {
+                cut = maxChars;
+            } else {
+                cut += 1;
+            }
+            propertyLines.add(text.substring(0, cut));
+            text = "    " + text.substring(cut).trim();
+        }
+        propertyLines.add(text);
     }
 
     private void arrangeVertices() {
@@ -525,15 +609,15 @@ public class Canvas {
                     gP.drawAdjacencyMatrix(canvasImage2.getGraphics(), vertexList, width / 2 + 50, 50);//draw adjacency matrix
                     gP.drawDistanceMatrix(canvasImage2.getGraphics(), vertexList, width / 2 + 50, height / 2 + 50);//draw distance matrix
                     g.drawImage(canvasImage2, 0, 0, null); //layer 1
-                    drawString("Graph disconnects when nodes in color red are removed.", 100, height - 70, 16);
-                    g.drawString("See output console for Diameter of Graph", 100, height / 2 + 50);
-                    
-                    // Display new properties
                     g.setColor(Color.BLUE);
-                    g.drawString("Components (k(G)): " + gP.countComponents(vertexList), 100, height - 50);
-                    g.drawString("Edge-Connectivity (lambda(G)): " + gP.calculateEdgeConnectivity(vertexList, edgeList), 100, height - 35);
-                    g.drawString("Density: " + String.format("%.4f", gP.calculateDensity(vertexList, edgeList)), 100, height - 20);
-                    
+                    int lineY = height / 2 + 20;
+                    for (String line : propertyLines) {
+                        g.drawString(line, 20, lineY);
+                        lineY += 14;
+                    }
+                    g.setColor(Color.RED);
+                    g.drawString("Graph disconnects when nodes in color red are removed.", 20, height - 10);
+
                     g.drawImage(canvasImage.getScaledInstance(width / 2, height / 2, Image.SCALE_SMOOTH), 0, 0, null); //layer 1
                     g.draw3DRect(0, 0, width / 2, height / 2, true);
                     g.setColor(Color.black);

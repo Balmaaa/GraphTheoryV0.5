@@ -8,6 +8,7 @@ import java.awt.Color;
 import java.awt.Graphics;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.LinkedList;
 import java.util.Vector;
 
 /**
@@ -154,97 +155,112 @@ public class GraphProperties {
     }
 
     public Vector<Vertex> vertexConnectivity(Vector<Vertex> vList) {
-        Vector<Vertex> origList = new Vector<Vertex>();
-        Vector<Vertex> tempList = new Vector<Vertex>();
-        Vector<Vertex> toBeRemoved = new Vector<Vertex>();
-        Vertex victim;
+        Vector<Vertex> minCut = new Vector<Vertex>();
+        int n = vList.size();
+        if (n <= 1 || countComponents(vList) > 1) {
+            return minCut;
+        }
 
+        boolean complete = true;
+        for (Vertex v : vList) {
+            if (v.getDegree() < n - 1) {
+                complete = false;
+                break;
+            }
+        }
+        if (complete) {
+            for (int i = 0; i < n - 1; i++) {
+                minCut.add(vList.get(i));
+            }
+            return minCut;
+        }
 
-        origList.setSize(vList.size());
-        Collections.copy(origList, vList);
-
-        int maxPossibleRemove = 0;
-        while (graphConnectivity(origList)) {
-            Collections.sort(origList, new ascendingDegreeComparator());
-            maxPossibleRemove = origList.firstElement().getDegree();
-
-            for (Vertex v : origList) {
-                if (v.getDegree() == maxPossibleRemove) {
-                    for (Vertex z : v.connectedVertices) {
-                        if (!tempList.contains(z)) {
-                            tempList.add(z);
+        int best = Integer.MAX_VALUE;
+        for (int s = 0; s < n; s++) {
+            for (int t = s + 1; t < n; t++) {
+                if (vList.get(s).connectedToVertex(vList.get(t))) {
+                    continue;
+                }
+                // split every vertex v into v_in (2v) and v_out (2v+1) joined by a unit-capacity arc
+                int[][] cap = new int[2 * n][2 * n];
+                for (int v = 0; v < n; v++) {
+                    cap[2 * v][2 * v + 1] = (v == s || v == t) ? n : 1;
+                    for (Vertex w : vList.get(v).connectedVertices) {
+                        cap[2 * v + 1][2 * vList.indexOf(w)] = n;
+                    }
+                }
+                int flow = maxFlow(cap, 2 * s + 1, 2 * t);
+                if (flow < best) {
+                    best = flow;
+                    boolean[] reachable = residualReachable(cap, 2 * s + 1);
+                    minCut = new Vector<Vertex>();
+                    for (int v = 0; v < n; v++) {
+                        if (reachable[2 * v] && !reachable[2 * v + 1]) {
+                            minCut.add(vList.get(v));
                         }
                     }
                 }
             }
+        }
+        return minCut;
+    }
 
-            while (graphConnectivity(origList) && tempList.size() > 0) {
-                Collections.sort(tempList, new descendingDegreeComparator());
-                victim = tempList.firstElement();
-                tempList.removeElementAt(0);
-                origList.remove(victim);
-                for (Vertex x : origList) {
-                    x.connectedVertices.remove(victim);
-                }
-                toBeRemoved.add(victim);
+    public int getVertexConnectivity(Vector<Vertex> vList) {
+        return vertexConnectivity(vList).size();
+    }
+
+    // Edmonds-Karp; leaves the residual capacities in cap
+    private int maxFlow(int[][] cap, int source, int sink) {
+        int flow = 0;
+        int size = cap.length;
+        while (true) {
+            int[] parent = new int[size];
+            for (int i = 0; i < size; i++) {
+                parent[i] = -1;
             }
-            tempList.removeAllElements();
-        }
-
-        return toBeRemoved;
-    }
-
-    private boolean graphConnectivity(Vector<Vertex> vList) {
-
-        Vector<Vertex> visitedList = new Vector<Vertex>();
-
-        recurseGraphConnectivity(vList.firstElement().connectedVertices, visitedList); //recursive function
-        if (visitedList.size() != vList.size()) {
-            return false;
-        } else {
-            return true;
-        }
-    }
-
-    private void recurseGraphConnectivity(Vector<Vertex> vList, Vector<Vertex> visitedList) {
-        for (Vertex v : vList) {
-            {
-                if (!visitedList.contains(v)) {
-                    visitedList.add(v);
-                    recurseGraphConnectivity(v.connectedVertices, visitedList);
+            parent[source] = source;
+            LinkedList<Integer> queue = new LinkedList<Integer>();
+            queue.add(source);
+            while (!queue.isEmpty() && parent[sink] == -1) {
+                int u = queue.removeFirst();
+                for (int w = 0; w < size; w++) {
+                    if (parent[w] == -1 && cap[u][w] > 0) {
+                        parent[w] = u;
+                        queue.add(w);
+                    }
                 }
             }
+            if (parent[sink] == -1) {
+                return flow;
+            }
+            int bottleneck = Integer.MAX_VALUE;
+            for (int w = sink; w != source; w = parent[w]) {
+                bottleneck = Math.min(bottleneck, cap[parent[w]][w]);
+            }
+            for (int w = sink; w != source; w = parent[w]) {
+                cap[parent[w]][w] -= bottleneck;
+                cap[w][parent[w]] += bottleneck;
+            }
+            flow += bottleneck;
         }
     }
 
-    private class ascendingDegreeComparator implements Comparator {
-
-        public int compare(Object v1, Object v2) {
-
-            if (((Vertex) v1).getDegree() > ((Vertex) v2).getDegree()) {
-                return 1;
-            } else if (((Vertex) v1).getDegree() > ((Vertex) v2).getDegree()) {
-                return -1;
-            } else {
-                return 0;
+    private boolean[] residualReachable(int[][] cap, int source) {
+        boolean[] reachable = new boolean[cap.length];
+        LinkedList<Integer> queue = new LinkedList<Integer>();
+        reachable[source] = true;
+        queue.add(source);
+        while (!queue.isEmpty()) {
+            int u = queue.removeFirst();
+            for (int w = 0; w < cap.length; w++) {
+                if (!reachable[w] && cap[u][w] > 0) {
+                    reachable[w] = true;
+                    queue.add(w);
+                }
             }
         }
+        return reachable;
     }
-
-    private class descendingDegreeComparator implements Comparator {
-
-        public int compare(Object v1, Object v2) {
-
-            if (((Vertex) v1).getDegree() > ((Vertex) v2).getDegree()) {
-                return -1;
-            } else if (((Vertex) v1).getDegree() > ((Vertex) v2).getDegree()) {
-                return 1;
-            } else {
-                return 0;
-            }
-        }
-    }
-
     private class descendingWidthComparator implements Comparator {
 
         public int compare(Object v1, Object v2) {
@@ -271,124 +287,163 @@ public class GraphProperties {
         return isolatedNodes;
     }
 
+    public int getInDegree(Vertex v, Vector<Edge> eList) {
+        int inDegree = 0;
+        for (Edge e : eList) {
+            if (e.vertex2 == v || (!e.directed && e.vertex1 == v)) {
+                inDegree++;
+            }
+        }
+        return inDegree;
+    }
+
+    public int getOutDegree(Vertex v, Vector<Edge> eList) {
+        int outDegree = 0;
+        for (Edge e : eList) {
+            if (e.vertex1 == v || (!e.directed && e.vertex2 == v)) {
+                outDegree++;
+            }
+        }
+        return outDegree;
+    }
+
     public int countComponents(Vector<Vertex> vList) {
-        if (vList.isEmpty()) return 0;
-        
+        return countComponents(vList, null, null);
+    }
+
+    // counts components while ignoring removedVertex and removedEdge (either may be null)
+    private int countComponents(Vector<Vertex> vList, Vertex removedVertex, Edge removedEdge) {
         Vector<Vertex> visited = new Vector<Vertex>();
+        if (removedVertex != null) {
+            visited.add(removedVertex);
+        }
         int componentCount = 0;
         
         for (Vertex v : vList) {
             if (!visited.contains(v)) {
                 componentCount++;
-                // DFS to mark all vertices in this component
-                dfsComponent(v, visited);
+                dfsComponent(v, visited, removedEdge);
             }
         }
         
         return componentCount;
     }
     
-    private void dfsComponent(Vertex v, Vector<Vertex> visited) {
+    private void dfsComponent(Vertex v, Vector<Vertex> visited, Edge removedEdge) {
         visited.add(v);
         for (Vertex neighbor : v.connectedVertices) {
+            if (removedEdge != null
+                    && ((removedEdge.vertex1 == v && removedEdge.vertex2 == neighbor)
+                    || (removedEdge.vertex2 == v && removedEdge.vertex1 == neighbor))) {
+                continue;
+            }
             if (!visited.contains(neighbor)) {
-                dfsComponent(neighbor, visited);
+                dfsComponent(neighbor, visited, removedEdge);
             }
         }
     }
 
+    public boolean isConnected(Vector<Vertex> vList) {
+        return countComponents(vList) == 1;
+    }
+
+    public Vector<Vertex> findCutpoints(Vector<Vertex> vList) {
+        Vector<Vertex> cutpoints = new Vector<Vertex>();
+        int baseComponents = countComponents(vList);
+        for (Vertex v : vList) {
+            if (countComponents(vList, v, null) > baseComponents) {
+                cutpoints.add(v);
+            }
+        }
+        return cutpoints;
+    }
+
     public int calculateEdgeConnectivity(Vector<Vertex> vList, Vector<Edge> eList) {
-        if (vList.isEmpty() || countComponents(vList) > 1) {
-            return 0; // Graph is already disconnected
+        int n = vList.size();
+        if (n <= 1 || countComponents(vList) > 1) {
+            return 0;
         }
-        
-        int minEdgeCuts = Integer.MAX_VALUE;
-        
-        // Try removing each edge and check connectivity
-        for (Edge e : eList) {
-            // Temporarily remove edge
-            e.vertex1.connectedVertices.remove(e.vertex2);
-            e.vertex2.connectedVertices.remove(e.vertex1);
-            
-            // Check if graph becomes disconnected
-            if (countComponents(vList) > 1) {
-                minEdgeCuts = 1; // This edge is a bridge
-                // Restore edge
-                e.vertex1.addVertex(e.vertex2);
-                e.vertex2.addVertex(e.vertex1);
-                return 1; // Can't get lower than 1
+
+        // lambda(G) = min over t of the max number of edge-disjoint paths between vertex 0 and t
+        int minEdgeCut = Integer.MAX_VALUE;
+        for (int t = 1; t < n; t++) {
+            int[][] cap = new int[n][n];
+            for (Edge e : eList) {
+                int a = vList.indexOf(e.vertex1);
+                int b = vList.indexOf(e.vertex2);
+                cap[a][b]++;
+                cap[b][a]++;
             }
-            
-            // Restore edge
-            e.vertex1.addVertex(e.vertex2);
-            e.vertex2.addVertex(e.vertex1);
+            minEdgeCut = Math.min(minEdgeCut, maxFlow(cap, 0, t));
         }
-        
-        // If no single edge removal disconnects, try pairs
-        if (minEdgeCuts == Integer.MAX_VALUE && eList.size() >= 2) {
-            for (int i = 0; i < eList.size(); i++) {
-                for (int j = i + 1; j < eList.size(); j++) {
-                    Edge e1 = eList.get(i);
-                    Edge e2 = eList.get(j);
-                    
-                    // Temporarily remove both edges
-                    e1.vertex1.connectedVertices.remove(e1.vertex2);
-                    e1.vertex2.connectedVertices.remove(e1.vertex1);
-                    e2.vertex1.connectedVertices.remove(e2.vertex2);
-                    e2.vertex2.connectedVertices.remove(e2.vertex1);
-                    
-                    if (countComponents(vList) > 1) {
-                        minEdgeCuts = 2;
-                        
-                        // Restore edges
-                        e1.vertex1.addVertex(e1.vertex2);
-                        e1.vertex2.addVertex(e1.vertex1);
-                        e2.vertex1.addVertex(e2.vertex2);
-                        e2.vertex2.addVertex(e2.vertex1);
-                        return 2;
-                    }
-                    
-                    // Restore edges
-                    e1.vertex1.addVertex(e1.vertex2);
-                    e1.vertex2.addVertex(e1.vertex1);
-                    e2.vertex1.addVertex(e2.vertex2);
-                    e2.vertex2.addVertex(e2.vertex1);
-                }
-            }
-        }
-        
-        return (minEdgeCuts == Integer.MAX_VALUE) ? eList.size() : minEdgeCuts;
+        return minEdgeCut;
     }
 
     public double calculateDensity(Vector<Vertex> vList, Vector<Edge> eList) {
         int n = vList.size();
         if (n <= 1) return 0.0;
-        
-        int maxPossibleEdges = n * (n - 1) / 2; // For undirected graph
-        return (double) eList.size() / maxPossibleEdges;
+
+        return (double) eList.size() / maxPossibleEdges(vList, eList);
+    }
+
+    private int maxPossibleEdges(Vector<Vertex> vList, Vector<Edge> eList) {
+        int n = vList.size();
+        boolean allDirected = !eList.isEmpty();
+        for (Edge e : eList) {
+            if (!e.directed) {
+                allDirected = false;
+                break;
+            }
+        }
+        return allDirected ? n * (n - 1) : n * (n - 1) / 2;
+    }
+
+    // sparse when |E| is nearer |V|, dense when |E| is nearer the maximum edge count (~|V|^2)
+    public String classifyDensity(Vector<Vertex> vList, Vector<Edge> eList) {
+        int n = vList.size();
+        int edges = eList.size();
+        if (edges == 0) {
+            return "Sparse";
+        }
+        int maxEdges = maxPossibleEdges(vList, eList);
+        if (maxEdges <= n) {
+            return calculateDensity(vList, eList) > 0.5 ? "Dense" : "Sparse";
+        }
+        return maxEdges - edges <= edges - n ? "Dense" : "Sparse";
     }
 
     public Vector<Edge> findBridges(Vector<Vertex> vList, Vector<Edge> eList) {
         Vector<Edge> bridges = new Vector<Edge>();
+        int baseComponents = countComponents(vList);
         
         for (Edge e : eList) {
-            // Temporarily remove edge
-            e.vertex1.connectedVertices.remove(e.vertex2);
-            e.vertex2.connectedVertices.remove(e.vertex1);
-            
-            // Check if graph becomes disconnected
-            if (countComponents(vList) > 1) {
+            if (countComponents(vList, null, e) > baseComponents) {
                 bridges.add(e);
             }
-            
-            // Restore edge
-            e.vertex1.addVertex(e.vertex2);
-            e.vertex2.addVertex(e.vertex1);
         }
         
         return bridges;
     }
 
+    public void printGeodesics(Vector<Vertex> vList) {
+        System.out.println("=== CONNECTEDNESS & GEODESICS ===");
+        for (int i = 0; i < vList.size(); i++) {
+            for (int j = i + 1; j < vList.size(); j++) {
+                VertexPair vp = new VertexPair(vList.get(i), vList.get(j));
+                Vector<Vertex> geodesic = vp.getShortestPath();
+                System.out.print(vList.get(i).name + "-" + vList.get(j).name + ": ");
+                if (geodesic == null) {
+                    System.out.println("not connected (unreachable)");
+                } else {
+                    System.out.print("connected, geodesic ");
+                    for (int k = 0; k < geodesic.size(); k++) {
+                        System.out.print((k > 0 ? "-" : "") + geodesic.get(k).name);
+                    }
+                    System.out.println(", distance " + (geodesic.size() - 1));
+                }
+            }
+        }
+    }
     public void generateWalks(Vector<Vertex> vList, int maxLength) {
         System.out.println("=== WALKS ===");
         if (vList.isEmpty()) return;
