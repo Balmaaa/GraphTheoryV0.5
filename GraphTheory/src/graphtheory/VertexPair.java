@@ -53,6 +53,32 @@ public class VertexPair {
 
     }
 
+    // BFS geodesic from vertex1 to vertex2; null when vertex2 is unreachable
+    public Vector<Vertex> getShortestPath() {
+        Vector<Vertex> visitedNodes = new Vector<Vertex>();
+        Vector<Vertex> parents = new Vector<Vertex>();
+        visitedNodes.add(vertex1);
+        parents.add(null);
+
+        for (int i = 0; i < visitedNodes.size() && !visitedNodes.contains(vertex2); i++) {
+            for (Vertex x : visitedNodes.get(i).connectedVertices) {
+                if (!visitedNodes.contains(x)) {
+                    visitedNodes.add(x);
+                    parents.add(visitedNodes.get(i));
+                }
+            }
+        }
+
+        if (!visitedNodes.contains(vertex2)) {
+            return null;
+        }
+        Vector<Vertex> path = new Vector<Vertex>();
+        for (Vertex v = vertex2; v != null; v = parents.get(visitedNodes.indexOf(v))) {
+            path.add(0, v);
+        }
+        return path;
+    }
+
     public void generateVertexDisjointPaths() {
         VertexDisjointContainer.removeAllElements();
         generatePaths();
