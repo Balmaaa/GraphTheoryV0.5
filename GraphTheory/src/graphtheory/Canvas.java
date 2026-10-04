@@ -1,254 +1,127 @@
 package graphtheory;
 
-/**
- *
- * @author mk
- */
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-import java.awt.event.MouseEvent;
-import java.awt.event.MouseListener;
-import java.awt.event.MouseMotionListener;
-import java.awt.Toolkit;
-import java.awt.event.KeyEvent;
+import java.awt.event.*;
+import java.util.Collections;
+import java.util.Map;
 import java.util.Vector;
 
 public class Canvas {
 
     public JFrame frame;
-    private JMenuBar menuBar;
     private CanvasPane canvas;
     private Graphics2D graphic;
-    private Color backgroundColour;
-    private Image canvasImage,  canvasImage2;
-    private int selectedTool;
-    private int selectedWindow;
-    private Dimension screenSize;
-    public int width,  height;
-    private int clickedVertexIndex;
-    private int clickedEdgeIndex;
+    private Image canvasImage, canvasImage2;
+    private int selectedTool = 1; // 1: Node, 2: Edge, 3: Move, 4: Delete
+    private int selectedWindow = 0; // 0: Studio, 1: Matrices, 2: Analytics
+    private int clickedVertexIndex = -1;
     private FileManager fileManager = new FileManager();
 
-    /////////////
-    private Vector<Vertex> vertexList;
-    private Vector<Edge> edgeList;
+    private Vector<Vertex> vertexList = new Vector<Vertex>();
+    private Vector<Edge> edgeList = new Vector<Edge>();
     private GraphProperties gP = new GraphProperties();
-    private boolean directedMode;
+    private boolean directedMode = false;
     private Vector<String> propertyLines = new Vector<String>();
-    /////////////
+
+    // Modern Palette
+    public static final Color BG_DARK = new Color(15, 17, 23);
+    public static final Color SIDEBAR_BG = new Color(22, 26, 36);
+    public static final Color CARD_BG = new Color(30, 35, 48);
+    public static final Color CARD_BORDER = new Color(45, 52, 70);
+    public static final Color ACCENT_CYAN = new Color(0, 210, 255);
+    public static final Color ACCENT_PINK = new Color(255, 51, 102);
+    public static final Color TEXT_PRIMARY = new Color(245, 247, 250);
+    public static final Color TEXT_MUTED = new Color(140, 148, 168);
 
     public Canvas(String title, int width, int height, Color bgColour) {
-        frame = new JFrame();
-        frame.setTitle(title);
+        frame = new JFrame("GraphStudio");
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setResizable(false);
+
         canvas = new CanvasPane();
-        InputListener inputListener = new InputListener();
-        canvas.addMouseListener(inputListener);
-        canvas.addMouseMotionListener(inputListener);
-        frame.setContentPane(canvas);
+        InputListener listener = new InputListener();
+        canvas.addMouseListener(listener);
+        canvas.addMouseMotionListener(listener);
 
-        this.width = width;
-        this.height = height;
         canvas.setPreferredSize(new Dimension(width, height));
-
-        //events
-        menuBar = new JMenuBar();
-        JMenu menuOptions = new JMenu("Tools");
-        JMenu menuOptions1 = new JMenu("File");
-        JMenu menuOptions2 = new JMenu("Extras");
-        JMenu menuOptions3 = new JMenu("Window");
-
-        JMenuItem item = new JMenuItem("Add Vertex");
-        item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_A, KeyEvent.CTRL_DOWN_MASK));
-        item.addActionListener(new MenuListener());
-        menuOptions.add(item);
-        item = new JMenuItem("Open File");
-        item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_O, KeyEvent.CTRL_DOWN_MASK));
-        item.addActionListener(new MenuListener());
-        menuOptions1.add(item);
-        item = new JMenuItem("Save to File");
-        item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_S, KeyEvent.CTRL_DOWN_MASK));
-        item.addActionListener(new MenuListener());
-        menuOptions1.add(item);
-        item = new JMenuItem("Add Edges");
-        item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_E, KeyEvent.CTRL_DOWN_MASK));
-        item.addActionListener(new MenuListener());
-        menuOptions.add(item);
-        JCheckBoxMenuItem directedItem = new JCheckBoxMenuItem("Directed Edges");
-        directedItem.addActionListener(new MenuListener());
-        menuOptions.add(directedItem);
-        item = new JMenuItem("Grab Tool");
-        item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_G, KeyEvent.CTRL_DOWN_MASK));
-        item.addActionListener(new MenuListener());
-        menuOptions.add(item);
-        item = new JMenuItem("Remove Tool");
-        item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_R, KeyEvent.CTRL_DOWN_MASK));
-        item.addActionListener(new MenuListener());
-        menuOptions.add(item);
-        item = new JMenuItem("Auto Arrange Vertices");
-        item.addActionListener(new MenuListener());
-
-        menuOptions2.add(item);
-        item = new JMenuItem("Remove All");
-        item.addActionListener(new MenuListener());
-        menuOptions2.add(item);
-        item = new JMenuItem("Find Isolated Nodes");
-        item.addActionListener(new MenuListener());
-        menuOptions2.add(item);
-        item = new JMenuItem("Find Cutpoints");
-        item.addActionListener(new MenuListener());
-        menuOptions2.add(item);
-        item = new JMenuItem("Find Bridges");
-        item.addActionListener(new MenuListener());
-        menuOptions2.add(item);
-        item = new JMenuItem("Generate Walks");
-        item.addActionListener(new MenuListener());
-        menuOptions2.add(item);
-        item = new JMenuItem("Generate Trails");
-        item.addActionListener(new MenuListener());
-        menuOptions2.add(item);
-
-        item = new JMenuItem("Graph");
-        item.addActionListener(new MenuListener());
-        menuOptions3.add(item);
-        item = new JMenuItem("Properties");
-        item.addActionListener(new MenuListener());
-        menuOptions3.add(item);
-
-        menuBar.add(menuOptions1);
-        menuBar.add(menuOptions);
-        menuBar.add(menuOptions2);
-        menuBar.add(menuOptions3);
-
-        frame.setJMenuBar(menuBar);
-
-        backgroundColour = bgColour;
-
-        screenSize = Toolkit.getDefaultToolkit().getScreenSize();
-        frame.setBounds(screenSize.width / 2 - width / 2, screenSize.height / 2 - height / 2, width, height);
+        frame.setContentPane(canvas);
         frame.pack();
+
+        Dimension screen = Toolkit.getDefaultToolkit().getScreenSize();
+        frame.setLocation((screen.width - width) / 2, (screen.height - height) / 2);
         setVisible(true);
-
-        vertexList = new Vector<Vertex>();
-        edgeList = new Vector<Edge>();
-
     }
 
     class InputListener implements MouseListener, MouseMotionListener {
-
         @Override
         public void mouseClicked(MouseEvent e) {
+            int x = e.getX(), y = e.getY();
 
-            if (selectedWindow == 0) {
-                switch (selectedTool) {
-                    case 1: {
-                        Vertex v = new Vertex(nextVertexName(), e.getX(), e.getY());
-                        vertexList.add(v);
-                        v.draw(graphic);
-                        break;
-                    }
-                }
-            //refresh();
+            // 1. Sidebar Navigation
+            if (x < 220) {
+                if (y >= 90 && y <= 125) selectedWindow = 0;
+                else if (y >= 135 && y <= 170) { selectedWindow = 1; buildProperties(); }
+                else if (y >= 180 && y <= 215) selectedWindow = 2;
+                
+                // File Operations (Sidebar Action Buttons)
+                else if (y >= 250 && y <= 280) handleOpenFile();
+                else if (y >= 290 && y <= 320) handleSaveFile();
+                
+                refresh();
+                return;
             }
 
+            // 2. Canvas Floating Tools & Extras
+            if (selectedWindow == 0 && y >= 18 && y <= 58) {
+                // Main Tools
+                if (x >= 240 && x < 320) selectedTool = 1;
+                else if (x >= 320 && x < 400) selectedTool = 2;
+                else if (x >= 400 && x < 480) selectedTool = 3;
+                else if (x >= 480 && x < 560) selectedTool = 4;
+                else if (x >= 560 && x < 650) directedMode = !directedMode;
 
-        }
+                // Extras Menu Actions
+                else if (x >= 670 && x < 760) autoArrangeVertices();
+                else if (x >= 760 && x < 850) highlightIsolatedNodes();
+                else if (x >= 850 && x < 930) highlightCutpoints();
+                else if (x >= 930 && x < 1010) highlightBridges();
+                else if (x >= 1010 && x < 1090) clearAll();
 
-        @Override
-        public void mouseEntered(MouseEvent e) {
-        }
+                erase();
+                refresh();
+                return;
+            }
 
-        @Override
-        public void mouseExited(MouseEvent e) {
+            // 3. Studio Canvas Interaction
+            if (selectedWindow == 0 && x > 230 && y > 70) {
+                if (selectedTool == 1) {
+                    Vertex v = new Vertex(nextVertexName(), x, y);
+                    vertexList.add(v);
+                }
+            }
+            erase();
+            refresh();
         }
 
         @Override
         public void mousePressed(MouseEvent e) {
-            if (selectedWindow == 0 && vertexList.size() > 0) {
-                switch (selectedTool) {
-                    case 4: {
-                        Vertex target = null;
-                        for (Vertex v : vertexList) {
-                            if (v.hasIntersection(e.getX(), e.getY())) {
-                                target = v;
-                            }
-                        }
-                        if (target != null) {
-                            removeVertex(target);
-                        } else {
-                            for (Edge d : edgeList) {
-                                if (d.hasIntersection(e.getX(), e.getY())) {
-                                    removeEdge(d);
-                                    break;
-                                }
-                            }
-                        }
-                        erase();
-                        refresh();
-                        break;
-                    }
-                    case 2: {
-                        for (Vertex v : vertexList) {
-                            if (v.hasIntersection(e.getX(), e.getY())) {
-                                v.wasClicked = true;
-                                clickedVertexIndex = vertexList.indexOf(v);
-                            } else {
-                                v.wasClicked = false;
-                            }
-                        }
-                        break;
-                    }
-                    case 3: {
-
+            if (selectedWindow == 0 && e.getX() > 230 && e.getY() > 70) {
+                if (selectedTool == 4) { // Delete Tool
+                    Vertex target = null;
+                    for (Vertex v : vertexList) if (v.hasIntersection(e.getX(), e.getY())) target = v;
+                    if (target != null) removeVertex(target);
+                    else {
                         for (Edge d : edgeList) {
-                            if (d.hasIntersection(e.getX(), e.getY())) {
-                                d.wasClicked = true;
-                                clickedEdgeIndex = edgeList.indexOf(d);
-                            } else {
-                                d.wasClicked = false;
-                            }
+                            if (d.hasIntersection(e.getX(), e.getY())) { removeEdge(d); break; }
                         }
-                        for (Vertex v : vertexList) {
-                            if (v.hasIntersection(e.getX(), e.getY())) {
-                                v.wasClicked = true;
-                                clickedVertexIndex = vertexList.indexOf(v);
-                            } else {
-                                v.wasClicked = false;
-                            }
-                        }
-                        break;
                     }
-                }
-            }
-
-        }
-
-        @Override
-        public void mouseReleased(MouseEvent e) {
-            if (selectedWindow == 0 && vertexList.size() > 0) {
-                switch (selectedTool) {
-                    case 2: {
-                        Vertex parentV = vertexList.get(clickedVertexIndex);
-                        for (Vertex v : vertexList) {
-                            if (v.hasIntersection(e.getX(), e.getY()) && v != parentV && !v.connectedToVertex(parentV)) {              //System.out.println(clickedVertexIndex+" "+vertexList.indexOf(v));
-                                Edge edge = new Edge(parentV, v, directedMode);
-                                v.addVertex(parentV);
-                                parentV.addVertex(v);
-                                v.wasClicked = false;
-                                parentV.wasClicked = false;
-                                edgeList.add(edge);
-                            } else {
-                                v.wasClicked = false;
-                            }
-                        }
-                        break;
-                    }
-                    case 3: {
-                        vertexList.get(clickedVertexIndex).wasClicked = false;
-                        break;
+                } else if (selectedTool == 2 || selectedTool == 3) {
+                    for (Vertex v : vertexList) {
+                        if (v.hasIntersection(e.getX(), e.getY())) {
+                            v.wasClicked = true;
+                            clickedVertexIndex = vertexList.indexOf(v);
+                        } else v.wasClicked = false;
                     }
                 }
             }
@@ -257,337 +130,162 @@ public class Canvas {
         }
 
         @Override
+        public void mouseReleased(MouseEvent e) {
+            if (selectedWindow == 0 && selectedTool == 2 && clickedVertexIndex >= 0 && clickedVertexIndex < vertexList.size()) {
+                Vertex parentV = vertexList.get(clickedVertexIndex);
+                for (Vertex v : vertexList) {
+                    if (v.hasIntersection(e.getX(), e.getY()) && v != parentV && !v.connectedToVertex(parentV)) {
+                        Edge edge = new Edge(parentV, v, directedMode);
+                        v.addVertex(parentV);
+                        parentV.addVertex(v);
+                        edgeList.add(edge);
+                    }
+                    v.wasClicked = false;
+                }
+            }
+            if (clickedVertexIndex >= 0 && clickedVertexIndex < vertexList.size()) {
+                vertexList.get(clickedVertexIndex).wasClicked = false;
+            }
+            clickedVertexIndex = -1;
+            erase();
+            refresh();
+        }
+
+        @Override
         public void mouseDragged(MouseEvent e) {
-
-            if (selectedWindow == 0 && vertexList.size() > 0) {
+            if (selectedWindow == 0 && clickedVertexIndex >= 0 && clickedVertexIndex < vertexList.size()) {
                 erase();
-                switch (selectedTool) {
-                    case 2: {
-                        graphic.setColor(Color.RED);
-                        drawLine(vertexList.get(clickedVertexIndex).location.x, vertexList.get(clickedVertexIndex).location.y, e.getX(), e.getY());
-                        break;
-
-                    }
-                    case 3: {
-                        if (vertexList.get(clickedVertexIndex).wasClicked) {
-                            vertexList.get(clickedVertexIndex).location.x = e.getX();
-                            vertexList.get(clickedVertexIndex).location.y = e.getY();
-                        }
-                        break;
-                    }
+                if (selectedTool == 2) {
+                    graphic.setColor(ACCENT_CYAN);
+                    graphic.setStroke(new BasicStroke(2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND, 0, new float[]{6}, 0));
+                    graphic.drawLine(vertexList.get(clickedVertexIndex).location.x, vertexList.get(clickedVertexIndex).location.y, e.getX(), e.getY());
+                } else if (selectedTool == 3) {
+                    vertexList.get(clickedVertexIndex).location.x = e.getX();
+                    vertexList.get(clickedVertexIndex).location.y = e.getY();
                 }
                 refresh();
             }
-
         }
 
         @Override
         public void mouseMoved(MouseEvent e) {
             if (selectedWindow == 0) {
-                for (Edge d : edgeList) {
-                    if (d.hasIntersection(e.getX(), e.getY())) {
-                        d.wasFocused = true;
-                    } else {
-                        d.wasFocused = false;
-                    }
-                }
-                for (Vertex v : vertexList) {
-                    if (v.hasIntersection(e.getX(), e.getY())) {
-                        v.wasFocused = true;
-                    } else {
-                        v.wasFocused = false;
-                    }
-                }
+                for (Edge d : edgeList) d.wasFocused = d.hasIntersection(e.getX(), e.getY());
+                for (Vertex v : vertexList) v.wasFocused = v.hasIntersection(e.getX(), e.getY());
                 refresh();
             }
-
         }
+
+        @Override public void mouseEntered(MouseEvent e) {}
+        @Override public void mouseExited(MouseEvent e) {}
     }
 
-    class MenuListener implements ActionListener {
+    // --- Restored Original Features & Algorithms ---
 
-        public void actionPerformed(ActionEvent e) {
-            String command = e.getActionCommand();
-            if (command.equals("Add Vertex")) {
-                selectedTool = 1;
-            } else if (command.equals("Add Edges")) {
-                selectedTool = 2;
-            } else if (command.equals("Directed Edges")) {
-                directedMode = ((JCheckBoxMenuItem) e.getSource()).isSelected();
-            } else if (command.equals("Grab Tool")) {
-                selectedTool = 3;
-            } else if (command.equals("Remove Tool")) {
-                selectedTool = 4;
-            } else if (command.equals("Auto Arrange Vertices")) {
-                arrangeVertices();
+    private void handleOpenFile() {
+        if (fileManager.jF.showOpenDialog(frame) == JFileChooser.APPROVE_OPTION) {
+            Vector<Vector> data = fileManager.loadFile(fileManager.jF.getSelectedFile());
+            if (data != null && data.size() >= 2) {
+                vertexList = data.firstElement();
+                edgeList = data.lastElement();
                 erase();
-            } else if (command.equals("Remove All")) {
-                edgeList.removeAllElements();
-                vertexList.removeAllElements();
-                clickedVertexIndex = 0;
-                erase();
-            } else if (command.equals("Find Isolated Nodes")) {
-                if (vertexList.size() > 0) {
-                    clearHighlights();
-                    Vector<Vertex> isolatedNodes = gP.findIsolatedNodes(vertexList);
-                    System.out.println("=== ISOLATED NODES ===");
-                    if (isolatedNodes.isEmpty()) {
-                        System.out.println("No isolated nodes found.");
-                    } else {
-                        for (Vertex v : isolatedNodes) {
-                            System.out.println("Isolated Node: " + v.name);
-                            v.wasClicked = true; // Highlight isolated nodes
-                        }
-                    }
-                    erase();
-                }
-            } else if (command.equals("Find Cutpoints")) {
-                if (vertexList.size() > 0) {
-                    clearHighlights();
-                    Vector<Vertex> cutpoints = gP.findCutpoints(vertexList);
-                    System.out.println("=== CUTPOINTS ===");
-                    if (cutpoints.isEmpty()) {
-                        System.out.println("No cutpoints found.");
-                    } else {
-                        for (Vertex v : cutpoints) {
-                            System.out.println("Cutpoint: " + v.name);
-                            v.wasClicked = true;
-                        }
-                    }
-                    erase();
-                }
-            } else if (command.equals("Find Bridges")) {
-                if (vertexList.size() > 0 && edgeList.size() > 0) {
-                    clearHighlights();
-                    Vector<Edge> bridges = gP.findBridges(vertexList, edgeList);
-                    System.out.println("=== BRIDGES ===");
-                    if (bridges.isEmpty()) {
-                        System.out.println("No bridges found.");
-                    } else {
-                        for (Edge bridge : bridges) {
-                            System.out.println("Bridge: " + bridge.vertex1.name + " - " + bridge.vertex2.name);
-                            bridge.wasClicked = true; // Highlight bridges
-                        }
-                    }
-                    erase();
-                }
-            } else if (command.equals("Generate Walks")) {
-                if (vertexList.size() > 0) {
-                    gP.generateWalks(vertexList, 4); // Generate walks up to length 4
-                }
-            } else if (command.equals("Generate Trails")) {
-                if (vertexList.size() > 0) {
-                    gP.generateTrails(vertexList, 4); // Generate trails up to length 4
-                }
-            } else if (command.equals("Open File")) {
-                int returnValue = fileManager.jF.showOpenDialog(frame);
-                if (returnValue == JFileChooser.APPROVE_OPTION) {
-                    loadFile(fileManager.loadFile(fileManager.jF.getSelectedFile()));
-                    System.out.println(fileManager.jF.getSelectedFile());
-                    selectedWindow=0;
-                }
-            } else if (command.equals("Save to File")) {
-                int returnValue = fileManager.jF.showSaveDialog(frame);
-                if (returnValue == JFileChooser.APPROVE_OPTION) {
-                    fileManager.saveFile(vertexList, edgeList, fileManager.jF.getSelectedFile());
-                    System.out.println(fileManager.jF.getSelectedFile());
-                }
-            } else if (command.equals("Graph")) {
-                selectedWindow = 0;
-                erase();
-            } else if (command.equals("Properties")) {
-                selectedWindow = 1;
-                propertyLines = new Vector<String>();
-                if (vertexList.size() > 0) {
-                    clearHighlights();
-                    //adjacency list
-                    int[][] matrix = gP.generateAdjacencyMatrix(vertexList, edgeList);
-
-                    //connectivity
-                    Vector<Vertex> tempList = gP.vertexConnectivity(vertexList);
-                    for (Vertex v : tempList) {
-                        vertexList.get(vertexList.indexOf(v)).wasClicked = true;
-                    }
-                    reloadVertexConnections(matrix, vertexList);
-
-                    //distance
-                    gP.generateDistanceMatrix(vertexList);
-
-                    //VD paths
-                    gP.displayContainers(vertexList);
-                //gP.drawNWideDiameter();
-
-                    printDegrees();
-                    gP.printGeodesics(vertexList);
-                    buildPropertyLines(tempList.size());
-                    System.out.println("=== GRAPH PROPERTIES ===");
-                    for (String line : propertyLines) {
-                        System.out.println(line);
-                    }
-                }
-                erase();
+                refresh();
             }
-
-            refresh();
         }
     }
 
-    private void clearHighlights() {
-        for (Vertex v : vertexList) {
-            v.wasClicked = false;
-        }
-        for (Edge d : edgeList) {
-            d.wasClicked = false;
+    private void handleSaveFile() {
+        if (fileManager.jF.showSaveDialog(frame) == JFileChooser.APPROVE_OPTION) {
+            fileManager.saveFile(vertexList, edgeList, fileManager.jF.getSelectedFile());
         }
     }
 
-    private void printDegrees() {
-        System.out.println("=== DEGREES ===");
-        for (Vertex v : vertexList) {
-            System.out.println("Vertex " + v.name + ": degree=" + v.getDegree()
-                    + " in-degree=" + gP.getInDegree(v, edgeList)
-                    + " out-degree=" + gP.getOutDegree(v, edgeList));
-        }
-    }
-
-    private void buildPropertyLines(int vertexConnectivity) {
-        propertyLines = new Vector<String>();
-        propertyLines.add("Order |V| = " + vertexList.size() + "    Size |E| = " + edgeList.size());
-        propertyLines.add("Components k(G) = " + gP.countComponents(vertexList)
-                + "    Connected: " + (gP.isConnected(vertexList) ? "Yes" : "No"));
-        propertyLines.add("Connectivity K(G) = " + vertexConnectivity
-                + "    Edge-Connectivity lambda(G) = " + gP.calculateEdgeConnectivity(vertexList, edgeList));
-        propertyLines.add("Density = " + String.format("%.4f", gP.calculateDensity(vertexList, edgeList))
-                + " (" + gP.classifyDensity(vertexList, edgeList) + ")");
-
-        StringBuilder names = new StringBuilder();
-        Vector<Vertex> isolatedNodes = gP.findIsolatedNodes(vertexList);
-        for (Vertex v : isolatedNodes) {
-            names.append(names.length() > 0 ? ", " : "").append(v.name);
-        }
-        addWrapped("Isolated Nodes (" + isolatedNodes.size() + "): " + (isolatedNodes.isEmpty() ? "None" : names));
-
-        names = new StringBuilder();
-        Vector<Vertex> cutpoints = gP.findCutpoints(vertexList);
-        for (Vertex v : cutpoints) {
-            names.append(names.length() > 0 ? ", " : "").append(v.name);
-        }
-        addWrapped("Cutpoints (" + cutpoints.size() + "): " + (cutpoints.isEmpty() ? "None" : names));
-
-        names = new StringBuilder();
-        Vector<Edge> bridges = gP.findBridges(vertexList, edgeList);
-        for (Edge d : bridges) {
-            names.append(names.length() > 0 ? ", " : "").append(d.vertex1.name).append("-").append(d.vertex2.name);
-        }
-        addWrapped("Bridges (" + bridges.size() + "): " + (bridges.isEmpty() ? "None" : names));
-
-        names = new StringBuilder();
-        for (Vertex v : vertexList) {
-            names.append(names.length() > 0 ? ", " : "").append(v.name).append(":").append(v.getDegree())
-                    .append("(").append(gP.getInDegree(v, edgeList)).append("/").append(gP.getOutDegree(v, edgeList)).append(")");
-        }
-        addWrapped("Degree (in/out): " + names);
-        propertyLines.add("See output console for walks, paths, geodesics and diameter.");
-    }
-
-    private void addWrapped(String text) {
-        int maxChars = 62;
-        while (text.length() > maxChars) {
-            int cut = text.lastIndexOf(", ", maxChars);
-            if (cut <= 0) {
-                cut = maxChars;
-            } else {
-                cut += 1;
-            }
-            propertyLines.add(text.substring(0, cut));
-            text = "    " + text.substring(cut).trim();
-        }
-        propertyLines.add(text);
-    }
-
-    private void arrangeVertices() {
+    private void autoArrangeVertices() {
+        if (vertexList.isEmpty()) return;
         double deg2rad = Math.PI / 180;
-        double radius = height / 5;
-        double centerX = width / 2;
-        double centerY = height / 2;
+        double radius = canvas.getHeight() / 3.2;
+        double centerX = (canvas.getWidth() - 220) / 2 + 220;
+        double centerY = canvas.getHeight() / 2 + 20;
         int interval = 360 / vertexList.size();
-
 
         for (int i = 0; i < vertexList.size(); i++) {
             double degInRad = i * deg2rad * interval;
-            double x = centerX + (Math.cos(degInRad) * radius);
-            double y = centerY + (Math.sin(degInRad) * radius);
-            int X = (int) x;
-            int Y = (int) y;
-            vertexList.get(i).location.x = X;
-            vertexList.get(i).location.y = Y;
+            vertexList.get(i).location.x = (int) (centerX + (Math.cos(degInRad) * radius));
+            vertexList.get(i).location.y = (int) (centerY + (Math.sin(degInRad) * radius));
         }
-
     }
 
-    private void reloadVertexConnections(int[][] aMatrix, Vector<Vertex> vList) {
-        for (Vertex v : vList) {
-            v.connectedVertices.clear();
-        }
+    private void highlightIsolatedNodes() {
+        clearHighlights();
+        Vector<Vertex> isolated = gP.findIsolatedNodes(vertexList);
+        for (Vertex v : isolated) v.wasClicked = true;
+    }
 
-        for (int i = 0; i < aMatrix.length; i++) {
-            for (int j = 0; j < aMatrix.length; j++) {
-                if (aMatrix[i][j] == 1) {
-                    vList.get(i).addVertex(vList.get(j));
-                }
-            }
-        }
+    private void highlightCutpoints() {
+        clearHighlights();
+        Vector<Vertex> cutpoints = gP.findCutpoints(vertexList);
+        for (Vertex v : cutpoints) v.wasClicked = true;
+    }
 
+    private void highlightBridges() {
+        clearHighlights();
+        Vector<Edge> bridges = gP.findBridges(vertexList, edgeList);
+        for (Edge e : bridges) e.wasClicked = true;
+    }
+
+    private void clearAll() {
+        vertexList.clear();
+        edgeList.clear();
+        clickedVertexIndex = -1;
+        erase();
+        refresh();
+    }
+
+    private void clearHighlights() {
+        for (Vertex v : vertexList) v.wasClicked = false;
+        for (Edge d : edgeList) d.wasClicked = false;
+    }
+
+    private void buildProperties() {
+        propertyLines.clear();
+        if (vertexList.isEmpty()) return;
+        gP.generateAdjacencyMatrix(vertexList, edgeList);
+        Vector<Vertex> tempList = gP.vertexConnectivity(vertexList);
+        gP.generateDistanceMatrix(vertexList);
+        propertyLines.add("• Total Vertices: " + vertexList.size() + " | Edges: " + edgeList.size());
+        propertyLines.add("• Connected Components: " + gP.countComponents(vertexList));
+        propertyLines.add("• Graph Is Connected: " + (gP.isConnected(vertexList) ? "Yes" : "No"));
+        propertyLines.add("• Vertex Connectivity: " + tempList.size() + " | Edge Connectivity: " + gP.calculateEdgeConnectivity(vertexList, edgeList));
+        propertyLines.add("• Graph Density: " + String.format("%.4f", gP.calculateDensity(vertexList, edgeList)) + " (" + gP.classifyDensity(vertexList, edgeList) + ")");
     }
 
     private String nextVertexName() {
         int n = vertexList.size();
-        boolean taken = true;
-        while (taken) {
-            taken = false;
+        while (true) {
+            boolean taken = false;
             for (Vertex v : vertexList) {
-                if (v.name.equals("" + n)) {
-                    taken = true;
-                    n++;
-                    break;
-                }
+                if (v.name.equals(String.valueOf(n))) { taken = true; n++; break; }
             }
+            if (!taken) return String.valueOf(n);
         }
-        return "" + n;
     }
 
     private void removeVertex(Vertex v) {
         for (Edge d : new Vector<Edge>(edgeList)) {
-            if (d.vertex1 == v || d.vertex2 == v) {
-                removeEdge(d);
-            }
+            if (d.vertex1 == v || d.vertex2 == v) removeEdge(d);
         }
         vertexList.remove(v);
-        clickedVertexIndex = 0;
-        clickedEdgeIndex = 0;
     }
 
     private void removeEdge(Edge d) {
         edgeList.remove(d);
         d.vertex1.connectedVertices.remove(d.vertex2);
         d.vertex2.connectedVertices.remove(d.vertex1);
-        clickedEdgeIndex = 0;
-    }
-
-    private void loadFile(Vector<Vector> File) {
-        vertexList = File.firstElement();
-        edgeList = File.lastElement();
-        erase();
     }
 
     public void refresh() {
-        for (Edge e : edgeList) {
-            e.draw(graphic);
-        }
-        for (Vertex v : vertexList) {
-            v.draw(graphic);
-        }
-
+        for (Edge e : edgeList) e.draw(graphic);
+        for (Vertex v : vertexList) v.draw(graphic);
         canvas.repaint();
     }
 
@@ -597,71 +295,281 @@ public class Canvas {
             canvasImage = canvas.createImage(size.width, size.height);
             canvasImage2 = canvas.createImage(size.width, size.height);
             graphic = (Graphics2D) canvasImage.getGraphics();
-            graphic.setColor(backgroundColour);
-            graphic.fillRect(0, 0, size.width, size.height);
-            graphic.setColor(Color.black);
+            erase();
         }
         frame.setVisible(visible);
     }
 
-    public boolean isVisible() {
-        return frame.isVisible();
-    }
-
     public void erase() {
-        graphic.clearRect(0, 0, width, height);
-    }
-
-    public void erase(int x, int y, int x1, int y2) {
-        graphic.clearRect(x, y, x1, y2);
-    }
-
-    public void drawString(String text, int x, int y, float size) {
-        Font orig = graphic.getFont();
-        graphic.setFont(graphic.getFont().deriveFont(1, size));
-        graphic.drawString(text, x, y);
-        graphic.setFont(orig);
-    }
-
-    public void drawLine(int x1, int y1, int x2, int y2) {
-        graphic.drawLine(x1, y1, x2, y2);
+        graphic.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        graphic.setColor(BG_DARK);
+        graphic.fillRect(0, 0, canvas.getWidth(), canvas.getHeight());
+        
+        // Grid
+        graphic.setColor(new Color(25, 30, 42));
+        for (int i = 220; i < canvas.getWidth(); i += 30) graphic.drawLine(i, 0, i, canvas.getHeight());
+        for (int j = 0; j < canvas.getHeight(); j += 30) graphic.drawLine(220, j, canvas.getWidth(), j);
     }
 
     private class CanvasPane extends JPanel {
+        @Override
+        protected void paintComponent(Graphics g) {
+            super.paintComponent(g);
+            Graphics2D g2 = (Graphics2D) g;
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 
-        public void paint(Graphics g) {
-            switch (selectedWindow) {
-                case 0: {   //graph window
-                    graphic.drawString("Vertex Count=" + vertexList.size() +
-                            "  Edge Count=" + edgeList.size() +
-                            "  Selected Tool=" + selectedTool, 50, height / 2 + (height * 2) / 5);
-                    g.drawImage(canvasImage, 0, 0, null); //layer 1
-                    g.setColor(Color.black);
-                    break;
-                }
-                case 1: {   //properties window
-                    canvasImage2.getGraphics().clearRect(0, 0, width, height); //clear
-                    gP.drawAdjacencyMatrix(canvasImage2.getGraphics(), vertexList, width / 2 + 50, 50);//draw adjacency matrix
-                    gP.drawDistanceMatrix(canvasImage2.getGraphics(), vertexList, width / 2 + 50, height / 2 + 50);//draw distance matrix
-                    g.drawImage(canvasImage2, 0, 0, null); //layer 1
-                    g.setColor(Color.BLUE);
-                    int lineY = height / 2 + 20;
-                    for (String line : propertyLines) {
-                        g.drawString(line, 20, lineY);
-                        lineY += 14;
-                    }
-                    g.setColor(Color.RED);
-                    g.drawString("Graph disconnects when nodes in color red are removed.", 20, height - 10);
+            if (selectedWindow == 0) {
+                g2.drawImage(canvasImage, 0, 0, null);
+                drawFloatingToolbar(g2);
+            } else if (selectedWindow == 1) {
+                drawMatricesView(g2);
+            } else if (selectedWindow == 2) {
+                drawAnalyticsView(g2);
+            }
 
-                    g.drawImage(canvasImage.getScaledInstance(width / 2, height / 2, Image.SCALE_SMOOTH), 0, 0, null); //layer 1
-                    g.draw3DRect(0, 0, width / 2, height / 2, true);
-                    g.setColor(Color.black);
+            drawSidebar(g2);
+        }
 
-                    break;
+        private void drawSidebar(Graphics2D g2) {
+            g2.setColor(SIDEBAR_BG);
+            g2.fillRect(0, 0, 220, getHeight());
+
+            g2.setColor(CARD_BORDER);
+            g2.drawLine(220, 0, 220, getHeight());
+
+            // Brand
+            g2.setColor(ACCENT_CYAN);
+            g2.fillRoundRect(20, 25, 10, 24, 6, 6);
+            g2.setColor(TEXT_PRIMARY);
+            g2.setFont(new Font("Segoe UI", Font.BOLD, 20));
+            g2.drawString("GraphStudio", 38, 44);
+
+            g2.setFont(new Font("Segoe UI", Font.BOLD, 10));
+            g2.setColor(TEXT_MUTED);
+            g2.drawString("NAVIGATION", 20, 80);
+
+            drawNavPill(g2, "Studio Canvas", 0, 90);
+            drawNavPill(g2, "Matrices & Proofs", 1, 135);
+            drawNavPill(g2, "Degree Analytics", 2, 180);
+
+            // File IO Buttons
+            g2.setFont(new Font("Segoe UI", Font.BOLD, 10));
+            g2.setColor(TEXT_MUTED);
+            g2.drawString("FILE MANAGEMENT", 20, 240);
+
+            drawSidebarButton(g2, "📂 Open File", 250);
+            drawSidebarButton(g2, "💾 Save File", 290);
+
+            // Quick Stats Card
+            g2.setColor(CARD_BG);
+            g2.fillRoundRect(15, getHeight() - 110, 190, 90, 14, 14);
+            g2.setColor(CARD_BORDER);
+            g2.drawRoundRect(15, getHeight() - 110, 190, 90, 14, 14);
+
+            g2.setColor(TEXT_MUTED);
+            g2.setFont(new Font("Segoe UI", Font.BOLD, 11));
+            g2.drawString("ACTIVE GRAPH", 28, getHeight() - 88);
+
+            g2.setColor(TEXT_PRIMARY);
+            g2.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+            g2.drawString("Nodes: " + vertexList.size(), 28, getHeight() - 62);
+            g2.drawString("Edges: " + edgeList.size(), 28, getHeight() - 40);
+        }
+
+        private void drawSidebarButton(Graphics2D g2, String text, int y) {
+            g2.setColor(CARD_BG);
+            g2.fillRoundRect(15, y, 190, 30, 8, 8);
+            g2.setColor(CARD_BORDER);
+            g2.drawRoundRect(15, y, 190, 30, 8, 8);
+            g2.setColor(TEXT_PRIMARY);
+            g2.setFont(new Font("Segoe UI", Font.BOLD, 12));
+            g2.drawString(text, 28, y + 20);
+        }
+
+        private void drawNavPill(Graphics2D g2, String title, int windowIdx, int y) {
+            boolean active = selectedWindow == windowIdx;
+            if (active) {
+                g2.setColor(new Color(0, 210, 255, 30));
+                g2.fillRoundRect(15, y, 190, 36, 10, 10);
+                g2.setColor(ACCENT_CYAN);
+                g2.drawRoundRect(15, y, 190, 36, 10, 10);
+                g2.setColor(ACCENT_CYAN);
+            } else {
+                g2.setColor(TEXT_MUTED);
+            }
+            g2.setFont(new Font("Segoe UI", Font.BOLD, 13));
+            g2.drawString(title, 32, y + 23);
+        }
+
+        private void drawFloatingToolbar(Graphics2D g2) {
+            // Tools Panel
+            g2.setColor(CARD_BG);
+            g2.fillRoundRect(240, 18, 410, 42, 14, 14);
+            g2.setColor(CARD_BORDER);
+            g2.drawRoundRect(240, 18, 410, 42, 14, 14);
+
+            drawToolBtn(g2, "+ Node", 1, 245, 23, 70);
+            drawToolBtn(g2, "+ Edge", 2, 325, 23, 70);
+            drawToolBtn(g2, "Move", 3, 405, 23, 70);
+            drawToolBtn(g2, "Delete", 4, 485, 23, 70);
+            
+            // Directed Mode Toggle
+            if (directedMode) {
+                g2.setColor(ACCENT_PINK);
+                g2.fillRoundRect(565, 23, 80, 32, 10, 10);
+                g2.setColor(BG_DARK);
+            } else {
+                g2.setColor(TEXT_MUTED);
+            }
+            g2.setFont(new Font("Segoe UI", Font.BOLD, 11));
+            g2.drawString("Directed", 580, 43);
+
+            // Extras Toolbar
+            g2.setColor(CARD_BG);
+            g2.fillRoundRect(665, 18, 430, 42, 14, 14);
+            g2.setColor(CARD_BORDER);
+            g2.drawRoundRect(665, 18, 430, 42, 14, 14);
+
+            drawActionBtn(g2, "Arrange", 672, 23);
+            drawActionBtn(g2, "Isolated", 762, 23);
+            drawActionBtn(g2, "Cutpoints", 852, 23);
+            drawActionBtn(g2, "Bridges", 932, 23);
+            
+            g2.setColor(ACCENT_PINK);
+            g2.setFont(new Font("Segoe UI", Font.BOLD, 11));
+            g2.drawString("Clear", 1025, 43);
+        }
+
+        private void drawToolBtn(Graphics2D g2, String label, int toolIdx, int x, int y, int w) {
+            boolean active = selectedTool == toolIdx;
+            if (active) {
+                g2.setColor(ACCENT_CYAN);
+                g2.fillRoundRect(x, y, w, 32, 10, 10);
+                g2.setColor(BG_DARK);
+            } else {
+                g2.setColor(TEXT_MUTED);
+            }
+            g2.setFont(new Font("Segoe UI", Font.BOLD, 11));
+            g2.drawString(label, x + 12, y + 20);
+        }
+
+        private void drawActionBtn(Graphics2D g2, String label, int x, int y) {
+            g2.setColor(TEXT_MUTED);
+            g2.setFont(new Font("Segoe UI", Font.BOLD, 11));
+            g2.drawString(label, x + 10, y + 20);
+        }
+
+        private void drawMatricesView(Graphics2D g2) {
+            g2.setColor(BG_DARK);
+            g2.fillRect(220, 0, getWidth() - 220, getHeight());
+
+            g2.setColor(TEXT_PRIMARY);
+            g2.setFont(new Font("Segoe UI", Font.BOLD, 22));
+            g2.drawString("Graph Structural Analysis", 250, 45);
+
+            canvasImage2.getGraphics().setColor(BG_DARK);
+            canvasImage2.getGraphics().fillRect(0, 0, getWidth(), getHeight());
+
+            gP.drawAdjacencyMatrix(canvasImage2.getGraphics(), vertexList, 250, 80);
+            gP.drawDistanceMatrix(canvasImage2.getGraphics(), vertexList, 620, 80);
+            g2.drawImage(canvasImage2, 0, 0, null);
+
+            g2.setColor(CARD_BG);
+            g2.fillRoundRect(250, 360, 750, 280, 16, 16);
+            g2.setColor(CARD_BORDER);
+            g2.drawRoundRect(250, 360, 750, 280, 16, 16);
+
+            g2.setColor(ACCENT_CYAN);
+            g2.setFont(new Font("Segoe UI", Font.BOLD, 15));
+            g2.drawString("Calculated Topological Properties", 275, 395);
+
+            g2.setColor(TEXT_PRIMARY);
+            g2.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+            int y = 430;
+            for (String line : propertyLines) {
+                g2.drawString(line, 275, y);
+                y += 30;
+            }
+        }
+
+        private void drawAnalyticsView(Graphics2D g2) {
+            g2.setColor(BG_DARK);
+            g2.fillRect(220, 0, getWidth() - 220, getHeight());
+
+            g2.setColor(TEXT_PRIMARY);
+            g2.setFont(new Font("Segoe UI", Font.BOLD, 22));
+            g2.drawString("Degree Distribution", 250, 45);
+
+            Map<Integer, Integer> dist = gP.getDegreeDistribution(vertexList);
+            double avgDeg = gP.getAverageDegree(vertexList);
+
+            g2.setColor(CARD_BG);
+            g2.fillRoundRect(250, 65, 260, 40, 12, 12);
+            g2.setColor(TEXT_MUTED);
+            g2.setFont(new Font("Segoe UI", Font.BOLD, 13));
+            g2.drawString("Average Node Degree: ", 265, 90);
+            g2.setColor(ACCENT_CYAN);
+            g2.drawString(String.format("%.2f", avgDeg), 425, 90);
+
+            g2.setColor(CARD_BG);
+            g2.fillRoundRect(250, 125, 430, 520, 16, 16);
+            g2.setColor(CARD_BORDER);
+            g2.drawRoundRect(250, 125, 430, 520, 16, 16);
+
+            g2.setColor(TEXT_PRIMARY);
+            g2.setFont(new Font("Segoe UI", Font.BOLD, 15));
+            g2.drawString("Degree Frequency Histogram", 275, 160);
+
+            if (!dist.isEmpty()) {
+                int maxFreq = Collections.max(dist.values());
+                int startX = 295;
+                int baseY = 580;
+
+                for (Map.Entry<Integer, Integer> entry : dist.entrySet()) {
+                    int degree = entry.getKey();
+                    int count = entry.getValue();
+                    int barHeight = (int) (((double) count / maxFreq) * 320);
+
+                    g2.setColor(ACCENT_PINK);
+                    g2.fillRoundRect(startX, baseY - barHeight, 42, barHeight, 8, 8);
+
+                    g2.setColor(TEXT_PRIMARY);
+                    g2.setFont(new Font("Segoe UI", Font.BOLD, 12));
+                    g2.drawString(String.valueOf(count), startX + 16, baseY - barHeight - 8);
+                    g2.setColor(TEXT_MUTED);
+                    g2.drawString("k=" + degree, startX + 10, baseY + 24);
+
+                    startX += 70;
                 }
             }
 
+            g2.setColor(CARD_BG);
+            g2.fillRoundRect(700, 125, 330, 520, 16, 16);
+            g2.setColor(CARD_BORDER);
+            g2.drawRoundRect(700, 125, 330, 520, 16, 16);
+
+            g2.setColor(TEXT_PRIMARY);
+            g2.setFont(new Font("Segoe UI", Font.BOLD, 15));
+            g2.drawString("Node Degrees", 725, 160);
+
+            int nodeY = 200;
+            g2.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+            for (Vertex v : vertexList) {
+                if (nodeY > 600) break;
+                int inDeg = gP.getInDegree(v, edgeList);
+                int outDeg = gP.getOutDegree(v, edgeList);
+
+                g2.setColor(ACCENT_CYAN);
+                g2.fillOval(725, nodeY - 10, 8, 8);
+
+                g2.setColor(TEXT_PRIMARY);
+                g2.drawString("Node " + v.name, 742, nodeY);
+                g2.setColor(TEXT_MUTED);
+                g2.drawString("Deg: " + v.getDegree() + " (In: " + inDeg + ", Out: " + outDeg + ")", 820, nodeY);
+
+                nodeY += 28;
+            }
         }
     }
 }
-

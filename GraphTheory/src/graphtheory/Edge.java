@@ -1,80 +1,73 @@
-/*
- * To change this template, choose Tools | Templates
- * and open the template in the editor.
- */
 package graphtheory;
 
-import java.awt.Color;
-import java.awt.Graphics;
+import java.awt.*;
 
-/**
- *
- * @author mk
- */
 public class Edge {
 
     public Vertex vertex1;
     public Vertex vertex2;
     public boolean wasFocused;
     public boolean wasClicked;
-    public boolean directed;    // when directed, the edge goes from vertex1 to vertex2
+    public boolean directed;
 
     public Edge(Vertex v1, Vertex v2) {
         this(v1, v2, false);
     }
 
     public Edge(Vertex v1, Vertex v2, boolean directed) {
-        vertex1 = v1;
-        vertex2 = v2;
+        this.vertex1 = v1;
+        this.vertex2 = v2;
         this.directed = directed;
     }
 
     public void draw(Graphics g) {
+        Graphics2D g2 = (Graphics2D) g;
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
         if (wasClicked) {
-            g.setColor(Color.red);
+            g2.setColor(Canvas.ACCENT_PINK);
+            g2.setStroke(new BasicStroke(3f));
         } else if (wasFocused) {
-            g.setColor(Color.blue);
+            g2.setColor(Canvas.ACCENT_CYAN);
+            g2.setStroke(new BasicStroke(2.5f));
         } else {
-            g.setColor(Color.black);
+            g2.setColor(new Color(80, 92, 120));
+            g2.setStroke(new BasicStroke(2f));
         }
-        g.drawLine(vertex1.location.x, vertex1.location.y, vertex2.location.x, vertex2.location.y);
+
+        g2.drawLine(vertex1.location.x, vertex1.location.y, vertex2.location.x, vertex2.location.y);
+
         if (directed) {
-            drawArrowHead(g);
+            drawArrowHead(g2);
         }
     }
 
-    private void drawArrowHead(Graphics g) {
+    private void drawArrowHead(Graphics2D g2) {
         double dx = vertex2.location.x - vertex1.location.x;
         double dy = vertex2.location.y - vertex1.location.y;
-        double length = Math.sqrt(dx * dx + dy * dy);
-        if (length == 0) {
-            return;
-        }
-        double ux = dx / length;
-        double uy = dy / length;
-        double tipX = vertex2.location.x - ux * 20;     // stop at the vertex outline
-        double tipY = vertex2.location.y - uy * 20;
-        double headLength = 12;
-        double headWidth = 6;
-        int[] xs = {(int) tipX,
-            (int) (tipX - ux * headLength - uy * headWidth),
-            (int) (tipX - ux * headLength + uy * headWidth)};
-        int[] ys = {(int) tipY,
-            (int) (tipY - uy * headLength + ux * headWidth),
-            (int) (tipY - uy * headLength - ux * headWidth)};
-        g.fillPolygon(xs, ys, 3);
+        double angle = Math.atan2(dy, dx);
+        int len = 12;
+
+        int x1 = (int) (vertex2.location.x - 22 * Math.cos(angle));
+        int y1 = (int) (vertex2.location.y - 22 * Math.sin(angle));
+
+        int x2 = (int) (x1 - len * Math.cos(angle - Math.PI / 7));
+        int y2 = (int) (y1 - len * Math.sin(angle - Math.PI / 7));
+
+        int x3 = (int) (x1 - len * Math.cos(angle + Math.PI / 7));
+        int y3 = (int) (y1 - len * Math.sin(angle + Math.PI / 7));
+
+        g2.fillPolygon(new int[]{x1, x2, x3}, new int[]{y1, y2, y3}, 3);
     }
 
     public boolean hasIntersection(int x, int y) {
-        double x1 = vertex1.location.x;
-        double y1 = vertex1.location.y;
-        double dx = vertex2.location.x - x1;
-        double dy = vertex2.location.y - y1;
-        double lengthSquared = dx * dx + dy * dy;
-        double t = lengthSquared == 0 ? 0 : ((x - x1) * dx + (y - y1) * dy) / lengthSquared;
-        t = Math.max(0, Math.min(1, t));
-        double distX = x - (x1 + t * dx);
-        double distY = y - (y1 + t * dy);
-        return distX * distX + distY * distY <= 8 * 8;
+        double x1 = vertex1.location.x, y1 = vertex1.location.y;
+        double x2 = vertex2.location.x, y2 = vertex2.location.y;
+        double l2 = (x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1);
+        if (l2 == 0) return Math.hypot(x - x1, y - y1) <= 6;
+        double t = Math.max(0, Math.min(1, ((x - x1) * (x2 - x1) + (y - y1) * (y2 - y1)) / l2));
+        double projX = x1 + t * (x2 - x1);
+        double projY = y1 + t * (y2 - y1);
+        return Math.hypot(x - projX, y - projY) <= 8;
     }
 }

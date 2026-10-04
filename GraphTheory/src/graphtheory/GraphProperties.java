@@ -1,20 +1,14 @@
-/*
- * To change this template, choose Tools | Templates
- * and open the template in the editor.
- */
 package graphtheory;
 
 import java.awt.Color;
 import java.awt.Graphics;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedList;
+import java.util.Map;
 import java.util.Vector;
 
-/**
- *
- * @author mk
- */
 public class GraphProperties {
 
     public int[][] adjacencyMatrix;
@@ -23,31 +17,31 @@ public class GraphProperties {
 
     public int[][] generateAdjacencyMatrix(Vector<Vertex> vList, Vector<Edge> eList) {
         adjacencyMatrix = new int[vList.size()][vList.size()];
-
-        for (int a = 0; a < vList.size(); a++)//initialize
-        {
+        for (int a = 0; a < vList.size(); a++) {
             for (int b = 0; b < vList.size(); b++) {
                 adjacencyMatrix[a][b] = 0;
             }
         }
-
         for (int i = 0; i < eList.size(); i++) {
-            adjacencyMatrix[vList.indexOf(eList.get(i).vertex1)][vList.indexOf(eList.get(i).vertex2)] = 1;
-            adjacencyMatrix[vList.indexOf(eList.get(i).vertex2)][vList.indexOf(eList.get(i).vertex1)] = 1;
+            int idx1 = vList.indexOf(eList.get(i).vertex1);
+            int idx2 = vList.indexOf(eList.get(i).vertex2);
+            if (idx1 != -1 && idx2 != -1) {
+                adjacencyMatrix[idx1][idx2] = 1;
+                if (!eList.get(i).directed) {
+                    adjacencyMatrix[idx2][idx1] = 1;
+                }
+            }
         }
         return adjacencyMatrix;
     }
 
     public int[][] generateDistanceMatrix(Vector<Vertex> vList) {
         distanceMatrix = new int[vList.size()][vList.size()];
-
-        for (int a = 0; a < vList.size(); a++)//initialize
-        {
+        for (int a = 0; a < vList.size(); a++) {
             for (int b = 0; b < vList.size(); b++) {
                 distanceMatrix[a][b] = 0;
             }
         }
-
         VertexPair vp;
         int shortestDistance;
         for (int i = 0; i < vList.size(); i++) {
@@ -61,6 +55,25 @@ public class GraphProperties {
         return distanceMatrix;
     }
 
+    // Degree Distribution Calculations
+    public Map<Integer, Integer> getDegreeDistribution(Vector<Vertex> vList) {
+        Map<Integer, Integer> dist = new HashMap<Integer, Integer>();
+        for (Vertex v : vList) {
+            int deg = v.getDegree();
+            dist.put(deg, dist.getOrDefault(deg, 0) + 1);
+        }
+        return dist;
+    }
+
+    public double getAverageDegree(Vector<Vertex> vList) {
+        if (vList.isEmpty()) return 0.0;
+        double totalDegree = 0;
+        for (Vertex v : vList) {
+            totalDegree += v.getDegree();
+        }
+        return totalDegree / vList.size();
+    }
+
     public void displayContainers(Vector<Vertex> vList) {
         vpList = new Vector<VertexPair>();
         int[] kWideGraph = new int[10];
@@ -68,88 +81,67 @@ public class GraphProperties {
             kWideGraph[i] = -1;
         }
 
-
-
         VertexPair vp;
-
-        for (int a = 0; a < vList.size(); a++) {    // assign vertex pairs
+        for (int a = 0; a < vList.size(); a++) {
             for (int b = a + 1; b < vList.size(); b++) {
                 vp = new VertexPair(vList.get(a), vList.get(b));
                 vpList.add(vp);
                 int longestWidth = 0;
-                System.out.println(">Vertex Pair " + vList.get(a).name + "-" + vList.get(b).name + "\n All Paths:");
                 vp.generateVertexDisjointPaths();
-                for (int i = 0; i < vp.VertexDisjointContainer.size(); i++) {//for every container of the vertex pair
+                for (int i = 0; i < vp.VertexDisjointContainer.size(); i++) {
                     int width = vp.VertexDisjointContainer.get(i).size();
                     Collections.sort(vp.VertexDisjointContainer.get(i), new descendingWidthComparator());
-                    int longestLength = vp.VertexDisjointContainer.get(i).firstElement().size();
                     longestWidth = Math.max(longestWidth, width);
-                    System.out.println("\tContainer " + i + " - " + "Width=" + width + " - Length=" + longestLength);
-
-                    for (int j = 0; j < vp.VertexDisjointContainer.get(i).size(); j++) //for every path in the container
-                    {
-                        System.out.print("\t\tPath " + j + "\n\t\t\t");
-                        for (int k = 0; k < vp.VertexDisjointContainer.get(i).get(j).size(); k++) {
-                            System.out.print("-" + vp.VertexDisjointContainer.get(i).get(j).get(k).name);
-                        }
-                        System.out.println();
-                    }
-
                 }
-                //d-wide for vertexPair
-                for (int k = 1; k <= longestWidth; k++) { // 1-wide, 2-wide, 3-wide...
+                for (int k = 1; k <= longestWidth; k++) {
                     int minLength = 999;
-                    for (int m = 0; m < vp.VertexDisjointContainer.size(); m++) // for each container with k-wide select shortest length
-                    {
+                    for (int m = 0; m < vp.VertexDisjointContainer.size(); m++) {
                         minLength = Math.min(minLength, vp.VertexDisjointContainer.get(m).size());
                     }
                     if (minLength != 999) {
-                        System.out.println(k + "-wide for vertexpair(" + vp.vertex1.name + "-" + vp.vertex2.name + ")=" + minLength);
                         kWideGraph[k] = Math.max(kWideGraph[k], minLength);
                     }
                 }
             }
         }
-
-        for (int i = 0; i < kWideGraph.length; i++) {
-            if (kWideGraph[i] != -1) {
-                System.out.println("D" + i + "(G)=" + kWideGraph[i]);
-            }
-        }
-
-
     }
 
     public void drawAdjacencyMatrix(Graphics g, Vector<Vertex> vList, int x, int y) {
-        int cSize = 20;
-        g.setColor(Color.LIGHT_GRAY);
-        g.fillRect(x, y-30, vList.size() * cSize+cSize, vList.size() * cSize+cSize);
-        g.setColor(Color.black);
-        g.drawString("AdjacencyMatrix", x, y - cSize);
+        int cSize = 22;
+        g.setColor(new Color(38, 42, 58));
+        g.fillRect(x, y - 30, vList.size() * cSize + cSize + 20, vList.size() * cSize + cSize + 20);
+        g.setColor(new Color(0, 229, 255));
+        g.drawString("Adjacency Matrix", x + 10, y - 10);
+
         for (int i = 0; i < vList.size(); i++) {
-            g.setColor(Color.RED);
-            g.drawString(vList.get(i).name, x + cSize + i * cSize, y);
-            g.drawString(vList.get(i).name, x, cSize + i * cSize + y);
-            g.setColor(Color.black);
+            g.setColor(new Color(255, 64, 129));
+            g.drawString(vList.get(i).name, x + cSize + i * cSize, y + 15);
+            g.drawString(vList.get(i).name, x + 10, cSize + i * cSize + y + 15);
+            g.setColor(Color.WHITE);
             for (int j = 0; j < vList.size(); j++) {
-                g.drawString("" + adjacencyMatrix[i][j], x + cSize * (j + 1), y + cSize * (i + 1));
+                if (adjacencyMatrix != null && i < adjacencyMatrix.length && j < adjacencyMatrix[i].length) {
+                    g.drawString("" + adjacencyMatrix[i][j], x + cSize * (j + 1), y + cSize * (i + 1) + 15);
+                }
             }
         }
     }
 
     public void drawDistanceMatrix(Graphics g, Vector<Vertex> vList, int x, int y) {
-        int cSize = 20;
-        g.setColor(Color.LIGHT_GRAY);
-        g.fillRect(x, y-30, vList.size() * cSize+cSize, vList.size() * cSize+cSize);
-        g.setColor(Color.black);
-        g.drawString("ShortestPathMatrix", x, y - cSize);
+        int cSize = 22;
+        g.setColor(new Color(38, 42, 58));
+        g.fillRect(x, y - 30, vList.size() * cSize + cSize + 20, vList.size() * cSize + cSize + 20);
+        g.setColor(new Color(0, 229, 255));
+        g.drawString("Shortest Path Matrix", x + 10, y - 10);
+
         for (int i = 0; i < vList.size(); i++) {
-            g.setColor(Color.RED);
-            g.drawString(vList.get(i).name, x + cSize + i * cSize, y);
-            g.drawString(vList.get(i).name, x, cSize + i * cSize + y);
-            g.setColor(Color.black);
+            g.setColor(new Color(255, 64, 129));
+            g.drawString(vList.get(i).name, x + cSize + i * cSize, y + 15);
+            g.drawString(vList.get(i).name, x + 10, cSize + i * cSize + y + 15);
+            g.setColor(Color.WHITE);
             for (int j = 0; j < vList.size(); j++) {
-                g.drawString("" + distanceMatrix[i][j], x + cSize * (j + 1), y + cSize * (i + 1));
+                if (distanceMatrix != null && i < distanceMatrix.length && j < distanceMatrix[i].length) {
+                    g.drawString("" + distanceMatrix[i][j], x + cSize * (j + 1), y + cSize * (i + 1) + 15);
+                }
             }
         }
     }
@@ -157,9 +149,7 @@ public class GraphProperties {
     public Vector<Vertex> vertexConnectivity(Vector<Vertex> vList) {
         Vector<Vertex> minCut = new Vector<Vertex>();
         int n = vList.size();
-        if (n <= 1 || countComponents(vList) > 1) {
-            return minCut;
-        }
+        if (n <= 1 || countComponents(vList) > 1) return minCut;
 
         boolean complete = true;
         for (Vertex v : vList) {
@@ -169,19 +159,14 @@ public class GraphProperties {
             }
         }
         if (complete) {
-            for (int i = 0; i < n - 1; i++) {
-                minCut.add(vList.get(i));
-            }
+            for (int i = 0; i < n - 1; i++) minCut.add(vList.get(i));
             return minCut;
         }
 
         int best = Integer.MAX_VALUE;
         for (int s = 0; s < n; s++) {
             for (int t = s + 1; t < n; t++) {
-                if (vList.get(s).connectedToVertex(vList.get(t))) {
-                    continue;
-                }
-                // split every vertex v into v_in (2v) and v_out (2v+1) joined by a unit-capacity arc
+                if (vList.get(s).connectedToVertex(vList.get(t))) continue;
                 int[][] cap = new int[2 * n][2 * n];
                 for (int v = 0; v < n; v++) {
                     cap[2 * v][2 * v + 1] = (v == s || v == t) ? n : 1;
@@ -209,15 +194,12 @@ public class GraphProperties {
         return vertexConnectivity(vList).size();
     }
 
-    // Edmonds-Karp; leaves the residual capacities in cap
     private int maxFlow(int[][] cap, int source, int sink) {
         int flow = 0;
         int size = cap.length;
         while (true) {
             int[] parent = new int[size];
-            for (int i = 0; i < size; i++) {
-                parent[i] = -1;
-            }
+            for (int i = 0; i < size; i++) parent[i] = -1;
             parent[source] = source;
             LinkedList<Integer> queue = new LinkedList<Integer>();
             queue.add(source);
@@ -230,9 +212,7 @@ public class GraphProperties {
                     }
                 }
             }
-            if (parent[sink] == -1) {
-                return flow;
-            }
+            if (parent[sink] == -1) return flow;
             int bottleneck = Integer.MAX_VALUE;
             for (int w = sink; w != source; w = parent[w]) {
                 bottleneck = Math.min(bottleneck, cap[parent[w]][w]);
@@ -261,28 +241,19 @@ public class GraphProperties {
         }
         return reachable;
     }
+
     private class descendingWidthComparator implements Comparator {
-
         public int compare(Object v1, Object v2) {
-
-            if (((Vector<Vertex>) v1).size() > (((Vector<Vertex>) v2).size())) {
-                return -1;
-            } else if (((Vector<Vertex>) v1).size() < (((Vector<Vertex>) v2).size())) {
-                return 1;
-            } else {
-                return 0;
-            }
+            if (((Vector<Vertex>) v1).size() > (((Vector<Vertex>) v2).size())) return -1;
+            else if (((Vector<Vertex>) v1).size() < (((Vector<Vertex>) v2).size())) return 1;
+            else return 0;
         }
     }
 
-    // New feature implementations
-    
     public Vector<Vertex> findIsolatedNodes(Vector<Vertex> vList) {
         Vector<Vertex> isolatedNodes = new Vector<Vertex>();
         for (Vertex v : vList) {
-            if (v.getDegree() == 0) {
-                isolatedNodes.add(v);
-            }
+            if (v.getDegree() == 0) isolatedNodes.add(v);
         }
         return isolatedNodes;
     }
@@ -290,9 +261,7 @@ public class GraphProperties {
     public int getInDegree(Vertex v, Vector<Edge> eList) {
         int inDegree = 0;
         for (Edge e : eList) {
-            if (e.vertex2 == v || (!e.directed && e.vertex1 == v)) {
-                inDegree++;
-            }
+            if (e.vertex2 == v || (!e.directed && e.vertex1 == v)) inDegree++;
         }
         return inDegree;
     }
@@ -300,9 +269,7 @@ public class GraphProperties {
     public int getOutDegree(Vertex v, Vector<Edge> eList) {
         int outDegree = 0;
         for (Edge e : eList) {
-            if (e.vertex1 == v || (!e.directed && e.vertex2 == v)) {
-                outDegree++;
-            }
+            if (e.vertex1 == v || (!e.directed && e.vertex2 == v)) outDegree++;
         }
         return outDegree;
     }
@@ -311,30 +278,23 @@ public class GraphProperties {
         return countComponents(vList, null, null);
     }
 
-    // counts components while ignoring removedVertex and removedEdge (either may be null)
     private int countComponents(Vector<Vertex> vList, Vertex removedVertex, Edge removedEdge) {
         Vector<Vertex> visited = new Vector<Vertex>();
-        if (removedVertex != null) {
-            visited.add(removedVertex);
-        }
+        if (removedVertex != null) visited.add(removedVertex);
         int componentCount = 0;
-        
         for (Vertex v : vList) {
             if (!visited.contains(v)) {
                 componentCount++;
                 dfsComponent(v, visited, removedEdge);
             }
         }
-        
         return componentCount;
     }
-    
+
     private void dfsComponent(Vertex v, Vector<Vertex> visited, Edge removedEdge) {
         visited.add(v);
         for (Vertex neighbor : v.connectedVertices) {
-            if (removedEdge != null
-                    && ((removedEdge.vertex1 == v && removedEdge.vertex2 == neighbor)
-                    || (removedEdge.vertex2 == v && removedEdge.vertex1 == neighbor))) {
+            if (removedEdge != null && ((removedEdge.vertex1 == v && removedEdge.vertex2 == neighbor) || (removedEdge.vertex2 == v && removedEdge.vertex1 == neighbor))) {
                 continue;
             }
             if (!visited.contains(neighbor)) {
@@ -351,28 +311,24 @@ public class GraphProperties {
         Vector<Vertex> cutpoints = new Vector<Vertex>();
         int baseComponents = countComponents(vList);
         for (Vertex v : vList) {
-            if (countComponents(vList, v, null) > baseComponents) {
-                cutpoints.add(v);
-            }
+            if (countComponents(vList, v, null) > baseComponents) cutpoints.add(v);
         }
         return cutpoints;
     }
 
     public int calculateEdgeConnectivity(Vector<Vertex> vList, Vector<Edge> eList) {
         int n = vList.size();
-        if (n <= 1 || countComponents(vList) > 1) {
-            return 0;
-        }
-
-        // lambda(G) = min over t of the max number of edge-disjoint paths between vertex 0 and t
+        if (n <= 1 || countComponents(vList) > 1) return 0;
         int minEdgeCut = Integer.MAX_VALUE;
         for (int t = 1; t < n; t++) {
             int[][] cap = new int[n][n];
             for (Edge e : eList) {
                 int a = vList.indexOf(e.vertex1);
                 int b = vList.indexOf(e.vertex2);
-                cap[a][b]++;
-                cap[b][a]++;
+                if (a != -1 && b != -1) {
+                    cap[a][b]++;
+                    cap[b][a]++;
+                }
             }
             minEdgeCut = Math.min(minEdgeCut, maxFlow(cap, 0, t));
         }
@@ -382,7 +338,6 @@ public class GraphProperties {
     public double calculateDensity(Vector<Vertex> vList, Vector<Edge> eList) {
         int n = vList.size();
         if (n <= 1) return 0.0;
-
         return (double) eList.size() / maxPossibleEdges(vList, eList);
     }
 
@@ -398,30 +353,21 @@ public class GraphProperties {
         return allDirected ? n * (n - 1) : n * (n - 1) / 2;
     }
 
-    // sparse when |E| is nearer |V|, dense when |E| is nearer the maximum edge count (~|V|^2)
     public String classifyDensity(Vector<Vertex> vList, Vector<Edge> eList) {
         int n = vList.size();
         int edges = eList.size();
-        if (edges == 0) {
-            return "Sparse";
-        }
+        if (edges == 0) return "Sparse";
         int maxEdges = maxPossibleEdges(vList, eList);
-        if (maxEdges <= n) {
-            return calculateDensity(vList, eList) > 0.5 ? "Dense" : "Sparse";
-        }
+        if (maxEdges <= n) return calculateDensity(vList, eList) > 0.5 ? "Dense" : "Sparse";
         return maxEdges - edges <= edges - n ? "Dense" : "Sparse";
     }
 
     public Vector<Edge> findBridges(Vector<Vertex> vList, Vector<Edge> eList) {
         Vector<Edge> bridges = new Vector<Edge>();
         int baseComponents = countComponents(vList);
-        
         for (Edge e : eList) {
-            if (countComponents(vList, null, e) > baseComponents) {
-                bridges.add(e);
-            }
+            if (countComponents(vList, null, e) > baseComponents) bridges.add(e);
         }
-        
         return bridges;
     }
 
@@ -444,30 +390,24 @@ public class GraphProperties {
             }
         }
     }
+
     public void generateWalks(Vector<Vertex> vList, int maxLength) {
-        System.out.println("=== WALKS ===");
         if (vList.isEmpty()) return;
-        
-        int[] walkCount = {0}; // Use array to pass by reference
+        int[] walkCount = {0};
         for (Vertex start : vList) {
             Vector<Vertex> currentWalk = new Vector<Vertex>();
             currentWalk.add(start);
             generateWalksRecursive(currentWalk, vList, maxLength, walkCount);
         }
     }
-    
+
     private void generateWalksRecursive(Vector<Vertex> currentWalk, Vector<Vertex> vList, int maxLength, int[] walkCount) {
         if (currentWalk.size() > maxLength) return;
-        
-        // Print current walk
         if (currentWalk.size() > 1) {
             System.out.print("Walk " + (++walkCount[0]) + ": ");
-            for (Vertex v : currentWalk) {
-                System.out.print(v.name + " ");
-            }
+            for (Vertex v : currentWalk) System.out.print(v.name + " ");
             System.out.println();
         }
-        
         Vertex last = currentWalk.lastElement();
         for (Vertex neighbor : last.connectedVertices) {
             currentWalk.add(neighbor);
@@ -477,10 +417,8 @@ public class GraphProperties {
     }
 
     public void generateTrails(Vector<Vertex> vList, int maxLength) {
-        System.out.println("=== TRAILS ===");
         if (vList.isEmpty()) return;
-        
-        int[] trailCount = {0}; // Use array to pass by reference
+        int[] trailCount = {0};
         for (Vertex start : vList) {
             Vector<Vertex> currentTrail = new Vector<Vertex>();
             Vector<Edge> usedEdges = new Vector<Edge>();
@@ -488,23 +426,16 @@ public class GraphProperties {
             generateTrailsRecursive(currentTrail, usedEdges, vList, maxLength, trailCount);
         }
     }
-    
-    private void generateTrailsRecursive(Vector<Vertex> currentTrail, Vector<Edge> usedEdges, 
-                                        Vector<Vertex> vList, int maxLength, int[] trailCount) {
+
+    private void generateTrailsRecursive(Vector<Vertex> currentTrail, Vector<Edge> usedEdges, Vector<Vertex> vList, int maxLength, int[] trailCount) {
         if (currentTrail.size() > maxLength) return;
-        
-        // Print current trail
         if (currentTrail.size() > 1) {
             System.out.print("Trail " + (++trailCount[0]) + ": ");
-            for (Vertex v : currentTrail) {
-                System.out.print(v.name + " ");
-            }
+            for (Vertex v : currentTrail) System.out.print(v.name + " ");
             System.out.println();
         }
-        
         Vertex last = currentTrail.lastElement();
         for (Vertex neighbor : last.connectedVertices) {
-            // Check if edge exists and hasn't been used
             Edge newEdge = new Edge(last, neighbor);
             if (!edgeExistsInList(newEdge, usedEdges)) {
                 currentTrail.add(neighbor);
@@ -515,7 +446,7 @@ public class GraphProperties {
             }
         }
     }
-    
+
     private boolean edgeExistsInList(Edge edge, Vector<Edge> edgeList) {
         for (Edge e : edgeList) {
             if ((e.vertex1 == edge.vertex1 && e.vertex2 == edge.vertex2) ||

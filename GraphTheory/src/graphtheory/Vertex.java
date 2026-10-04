@@ -1,32 +1,21 @@
-/*
- * To change this template, choose Tools | Templates
- * and open the template in the editor.
- */
 package graphtheory;
 
-import java.awt.Color;
-import java.awt.Point;
+import java.awt.*;
 import java.util.Vector;
-import java.awt.Graphics;
 
-/**
- *
- * @author mk
- */
 public class Vertex implements Comparable {
 
     public String name;
     public Point location;
     public boolean wasFocused;
     public boolean wasClicked;
-    private int size1 = 30;
-    private int size2 = 40;
+    private int size = 38;
     public Vector<Vertex> connectedVertices;
 
     public Vertex(String name, int x, int y) {
         this.name = name;
-        location = new Point(x, y);
-        connectedVertices = new Vector<Vertex>();
+        this.location = new Point(x, y);
+        this.connectedVertices = new Vector<Vertex>();
     }
 
     public void addVertex(Vertex v) {
@@ -34,49 +23,52 @@ public class Vertex implements Comparable {
     }
 
     public boolean hasIntersection(int x, int y) {
-        double distance = Math.sqrt(Math.pow((x - location.x), 2) + Math.pow((y - location.y), 2));
-
-        if (distance > size2 / 2) {
-            return false;
-        } else {
-            return true;
-        }
+        return Math.hypot(x - location.x, y - location.y) <= size / 2.0;
     }
 
     public boolean connectedToVertex(Vertex v) {
-        if (connectedVertices.contains(v)) {
-            return true;
-        }
-        return false;
+        return connectedVertices.contains(v);
     }
 
     public int getDegree() {
         return connectedVertices.size();
     }
 
+    @Override
     public int compareTo(Object v) {
-        if (((Vertex) v).getDegree() > getDegree()) {
-            return 1;
-        } else if (((Vertex) v).getDegree() < getDegree()) {
-            return -1;
-        } else {
-            return 0;
-        }
+        return Integer.compare(((Vertex) v).getDegree(), getDegree());
     }
 
     public void draw(Graphics g) {
+        Graphics2D g2 = (Graphics2D) g;
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+        // Soft Outer Glow / Ring on Select or Focus
         if (wasClicked) {
-            g.setColor(Color.red);
+            g2.setColor(new Color(255, 51, 102, 80));
+            g2.fillOval(location.x - 26, location.y - 26, 52, 52);
+            g2.setColor(Canvas.ACCENT_PINK);
         } else if (wasFocused) {
-            g.setColor(Color.blue);
+            g2.setColor(new Color(0, 210, 255, 60));
+            g2.fillOval(location.x - 24, location.y - 24, 48, 48);
+            g2.setColor(Canvas.ACCENT_CYAN);
         } else {
-            g.setColor(Color.black);
+            g2.setColor(Canvas.CARD_BORDER);
         }
 
-        g.fillOval(location.x - size2 / 2, location.y - size2 / 2, size2, size2);
-        g.setColor(Color.WHITE);
-        g.fillOval(location.x - size1 / 2, location.y - size1 / 2, size1, size1);
-        g.setColor(Color.BLACK);
-        g.drawString(name, location.x, location.y);
+        // Main Node Circle
+        g2.fillOval(location.x - size / 2, location.y - size / 2, size, size);
+
+        // Core Fill
+        g2.setColor(Canvas.CARD_BG);
+        g2.fillOval(location.x - (size - 6) / 2, location.y - (size - 6) / 2, size - 6, size - 6);
+
+        // Node Label
+        g2.setColor(Canvas.TEXT_PRIMARY);
+        g2.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        FontMetrics fm = g2.getFontMetrics();
+        int textX = location.x - fm.stringWidth(name) / 2;
+        int textY = location.y + fm.getAscent() / 2 - 2;
+        g2.drawString(name, textX, textY);
     }
 }
