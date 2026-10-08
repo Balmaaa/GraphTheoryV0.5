@@ -1,7 +1,3 @@
-/*
- * To change this template, choose Tools | Templates
- * and open the template in the editor.
- */
 package graphtheory;
 
 import java.awt.Point;
@@ -10,51 +6,52 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.io.Writer;
 import java.util.Scanner;
 import java.util.Vector;
 import javax.swing.JFileChooser;
 
-/**
- *
- * @author mk
- */
 public class FileManager {
 
     public JFileChooser jF;
 
     public FileManager() {
         jF = new JFileChooser();
-
-
     }
 
     public void saveFile(Vector<Vertex> vList, Vector<Edge> eList, File fName) {
         try {
             BufferedWriter out = new BufferedWriter(new FileWriter(fName));
 
-            out.write(""+vList.size());
+            out.write("" + vList.size());
             out.newLine();
             for (Vertex v : vList) {
                 out.write(v.name);
                 out.newLine();
             }
-            // row i, column j is 1 when an edge goes from i to j (both ways for undirected edges)
-            int[][] matrix = new int[vList.size()][vList.size()];
+
+            // Write Matrix with Weights
+            double[][] matrix = new double[vList.size()][vList.size()];
             for (Edge e : eList) {
                 int a = vList.indexOf(e.vertex1);
                 int b = vList.indexOf(e.vertex2);
-                matrix[a][b] = 1;
-                if (!e.directed) {
-                    matrix[b][a] = 1;
+                if (a != -1 && b != -1) {
+                    matrix[a][b] = e.weight;
+                    if (!e.directed) {
+                        matrix[b][a] = e.weight;
+                    }
                 }
             }
+
             for (int i = 0; i < vList.size(); i++) {
+                StringBuilder line = new StringBuilder();
                 for (int j = 0; j < vList.size(); j++) {
-                    out.write("" + matrix[i][j]);
+                    if (j > 0) line.append(",");
+                    line.append(matrix[i][j]);
                 }
+                out.write(line.toString());
                 out.newLine();
             }
+
             for (int k = 0; k < vList.size(); k++) {
                 out.write(vList.get(k).location.x + "," + vList.get(k).location.y);
                 out.newLine();
@@ -64,7 +61,6 @@ public class FileManager {
         } catch (IOException e) {
             System.out.println(e);
         }
-
     }
 
     public Vector<Vector> loadFile(File fName) {
@@ -76,7 +72,7 @@ public class FileManager {
             Scanner data = new Scanner(f);
             if (data.hasNext()) {
                 int size = Integer.parseInt(data.nextLine());
-                for (int i = 0; i < size; i++) {//vertex only
+                for (int i = 0; i < size; i++) {
                     Vertex v = new Vertex(data.nextLine(), 0, 0);
                     vertexList.add(v);
                 }
@@ -84,25 +80,31 @@ public class FileManager {
                 String[] adjacencyLines = new String[vertexList.size()];
                 for (int j = 0; j < vertexList.size(); j++) {
                     adjacencyLines[j] = data.nextLine();
-                    System.out.println(adjacencyLines[j]);
                 }
 
-                for (int j = 0; j < vertexList.size(); j++) { // adjacency list
-                    for (int k = 0; k < vertexList.size(); k++) {
-                        if (adjacencyLines[j].charAt(k) == '1' || adjacencyLines[k].charAt(j) == '1') {
-                            vertexList.get(j).addVertex(vertexList.get(k));
+                for (int j = 0; j < vertexList.size(); j++) {
+                    String[] tokens = adjacencyLines[j].split(",");
+                    for (int k = j + 1; k < vertexList.size(); k++) {
+                        double weightForward = 0, weightBackward = 0;
+                        if (tokens.length > k) {
+                            weightForward = Double.parseDouble(tokens[k]);
                         }
-                    }
+                        String[] otherTokens = adjacencyLines[k].split(",");
+                        if (otherTokens.length > j) {
+                            weightBackward = Double.parseDouble(otherTokens[j]);
+                        }
 
-                    for (int l = j + 1; l < vertexList.size(); l++) { //edges
-                        boolean forward = adjacencyLines[j].charAt(l) == '1';
-                        boolean backward = adjacencyLines[l].charAt(j) == '1';
-                        if (forward && backward) {
-                            edgeList.add(new Edge(vertexList.get(j), vertexList.get(l)));
-                        } else if (forward) {
-                            edgeList.add(new Edge(vertexList.get(j), vertexList.get(l), true));
-                        } else if (backward) {
-                            edgeList.add(new Edge(vertexList.get(l), vertexList.get(j), true));
+                        if (weightForward > 0 || weightBackward > 0) {
+                            vertexList.get(j).addVertex(vertexList.get(k));
+                            vertexList.get(k).addVertex(vertexList.get(j));
+
+                            if (weightForward > 0 && weightBackward > 0 && weightForward == weightBackward) {
+                                edgeList.add(new Edge(vertexList.get(j), vertexList.get(k), false, weightForward));
+                            } else if (weightForward > 0) {
+                                edgeList.add(new Edge(vertexList.get(j), vertexList.get(k), true, weightForward));
+                            } else if (weightBackward > 0) {
+                                edgeList.add(new Edge(vertexList.get(k), vertexList.get(j), true, weightBackward));
+                            }
                         }
                     }
                 }
@@ -113,7 +115,6 @@ public class FileManager {
                         v.location = new Point(Integer.parseInt(pos.split(",")[0]), Integer.parseInt(pos.split(",")[1]));
                     }
                 }
-
             }
         } catch (Exception e) {
             System.out.println(e);

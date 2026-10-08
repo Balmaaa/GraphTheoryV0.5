@@ -9,15 +9,21 @@ public class Edge {
     public boolean wasFocused;
     public boolean wasClicked;
     public boolean directed;
+    public double weight = 1.0; // Default weight
 
     public Edge(Vertex v1, Vertex v2) {
-        this(v1, v2, false);
+        this(v1, v2, false, 1.0);
     }
 
     public Edge(Vertex v1, Vertex v2, boolean directed) {
+        this(v1, v2, directed, 1.0);
+    }
+
+    public Edge(Vertex v1, Vertex v2, boolean directed, double weight) {
         this.vertex1 = v1;
         this.vertex2 = v2;
         this.directed = directed;
+        this.weight = weight;
     }
 
     public void draw(Graphics g) {
@@ -40,6 +46,33 @@ public class Edge {
         if (directed) {
             drawArrowHead(g2);
         }
+
+        // Draw Edge Weight Badge
+        if (weight != 1.0 || Canvas.weightedMode) {
+            drawWeightLabel(g2);
+        }
+    }
+
+    private void drawWeightLabel(Graphics2D g2) {
+        int midX = (vertex1.location.x + vertex2.location.x) / 2;
+        int midY = (vertex1.location.y + vertex2.location.y) / 2;
+
+        String label = (weight == (long) weight) ? String.format("%d", (long) weight) : String.format("%.1f", weight);
+
+        g2.setFont(new Font("Segoe UI", Font.BOLD, 11));
+        FontMetrics fm = g2.getFontMetrics();
+        int w = fm.stringWidth(label) + 8;
+        int h = fm.getHeight() + 2;
+
+        // Badge Background
+        g2.setColor(Canvas.CARD_BG);
+        g2.fillRoundRect(midX - w / 2, midY - h / 2, w, h, 6, 6);
+        g2.setColor(Canvas.CARD_BORDER);
+        g2.drawRoundRect(midX - w / 2, midY - h / 2, w, h, 6, 6);
+
+        // Badge Text
+        g2.setColor(Canvas.ACCENT_CYAN);
+        g2.drawString(label, midX - fm.stringWidth(label) / 2, midY + fm.getAscent() / 2 - 2);
     }
 
     private void drawArrowHead(Graphics2D g2) {

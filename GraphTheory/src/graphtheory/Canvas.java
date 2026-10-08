@@ -3,8 +3,10 @@ package graphtheory;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
+import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
+import java.net.URL;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Vector;
@@ -13,6 +15,7 @@ public class Canvas {
 
     public JFrame frame;
     private CanvasPane canvas;
+    private Image appLogo; // Stored logo reference for sidebar rendering
     private int selectedTool = 1; // 1: Add Node, 2: Add Edge, 3: Move, 4: Delete
     private int activeActionBtn = -1; // 1: Arrange, 2: Isolated, 3: Cutpoints, 4: Bridges, 5: Walks, 6: Trails, 7: Complete
     private int selectedWindow = 0; // 0: Studio, 1: Matrices, 2: Analytics
@@ -23,11 +26,12 @@ public class Canvas {
     private Vector<Vertex> vertexList = new Vector<Vertex>();
     private Vector<Edge> edgeList = new Vector<Edge>();
     private GraphProperties gP = new GraphProperties();
-    private boolean directedMode = false;
+    public static boolean directedMode = false;
+    public static boolean weightedMode = false;
     private Vector<String> propertyLines = new Vector<String>();
 
     // Interactive Analytics State
-    private int selectedDegreeFilter = -1; // -1 means no bar selected / show all
+    private int selectedDegreeFilter = -1;
     private Vector<DegreeBarRegion> barRegions = new Vector<DegreeBarRegion>();
 
     // Modern Palette
@@ -44,6 +48,7 @@ public class Canvas {
     private Vector<Rectangle> toolBounds = new Vector<Rectangle>();
     private Vector<Rectangle> actionBounds = new Vector<Rectangle>();
     private Rectangle directedBounds = new Rectangle();
+    private Rectangle weightedBounds = new Rectangle();
     private Rectangle clearBounds = new Rectangle();
 
     private static class DegreeBarRegion {
@@ -59,7 +64,10 @@ public class Canvas {
         frame = new JFrame("GraphStudio");
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setResizable(true);
-        frame.setMinimumSize(new Dimension(950, 600));
+        frame.setMinimumSize(new Dimension(980, 600));
+
+        // Setup Window Logo and store image
+        setupWindowLogo();
 
         canvas = new CanvasPane();
         InputListener listener = new InputListener();
@@ -82,6 +90,50 @@ public class Canvas {
         setVisible(true);
     }
 
+    private void setupWindowLogo() {
+        try {
+            URL iconURL = getClass().getResource("/graphtheory/assets/logo.png");
+            if (iconURL == null) {
+                iconURL = getClass().getResource("/logo.png");
+            }
+
+            if (iconURL != null) {
+                appLogo = Toolkit.getDefaultToolkit().getImage(iconURL);
+                frame.setIconImage(appLogo);
+            } else {
+                appLogo = createFallbackLogo();
+                frame.setIconImage(appLogo);
+            }
+        } catch (Exception e) {
+            appLogo = createFallbackLogo();
+            frame.setIconImage(appLogo);
+        }
+    }
+
+    private Image createFallbackLogo() {
+        int size = 64;
+        BufferedImage img = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g2 = img.createGraphics();
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+        g2.setColor(BG_DARK);
+        g2.fillRoundRect(0, 0, size, size, 16, 16);
+
+        g2.setColor(ACCENT_PINK);
+        g2.setStroke(new BasicStroke(3f));
+        g2.drawLine(16, 48, 32, 16);
+        g2.drawLine(32, 16, 48, 48);
+        g2.drawLine(16, 48, 48, 48);
+
+        g2.setColor(ACCENT_CYAN);
+        g2.fillOval(10, 42, 12, 12);
+        g2.fillOval(26, 10, 12, 12);
+        g2.fillOval(42, 42, 12, 12);
+
+        g2.dispose();
+        return img;
+    }
+
     class InputListener implements MouseListener, MouseMotionListener {
         @Override
         public void mouseClicked(MouseEvent e) {
@@ -98,7 +150,7 @@ public class Canvas {
                 return;
             }
 
-            // 2. Toolbar & Top Actions (Studio Canvas Window)
+            // 2. Toolbar & Top Actions
             if (selectedWindow == 0 && y >= 12 && y <= 54) {
                 for (int i = 0; i < toolBounds.size(); i++) {
                     if (toolBounds.get(i).contains(x, y)) {
@@ -112,6 +164,12 @@ public class Canvas {
 
                 if (directedBounds.contains(x, y)) {
                     directedMode = !directedMode;
+                    refresh();
+                    return;
+                }
+
+                if (weightedBounds.contains(x, y)) {
+                    weightedMode = !weightedMode;
                     refresh();
                     return;
                 }
@@ -147,7 +205,7 @@ public class Canvas {
                 for (DegreeBarRegion bar : barRegions) {
                     if (bar.bounds.contains(x, y)) {
                         if (selectedDegreeFilter == bar.degree) {
-                            selectedDegreeFilter = -1; // Toggle off if clicked again
+                            selectedDegreeFilter = -1;
                         } else {
                             selectedDegreeFilter = bar.degree;
                         }
@@ -197,7 +255,18 @@ public class Canvas {
                 Vertex parentV = vertexList.get(clickedVertexIndex);
                 for (Vertex v : vertexList) {
                     if (v.hasIntersection(e.getX(), e.getY()) && v != parentV && !v.connectedToVertex(parentV)) {
-                        Edge edge = new Edge(parentV, v, directedMode);
+                        double weight = 1.0;
+                        if (weightedMode) {
+                            String input = JOptionPane.showInputDialog(frame, "Enter Edge Weight:", "Edge Weight", JOptionPane.PLAIN_MESSAGE);
+                            if (input != null && !input.trim().isEmpty()) {
+                                try {
+                                    weight = Double.parseDouble(input.trim());
+                                } catch (NumberFormatException ex) {
+                                    weight = 1.0;
+                                }
+                            }
+                        }
+                        Edge edge = new Edge(parentV, v, directedMode, weight);
                         v.addVertex(parentV);
                         parentV.addVertex(v);
                         edgeList.add(edge);
@@ -299,28 +368,50 @@ public class Canvas {
 
     private void generateWalks() {
         if (vertexList.isEmpty()) return;
-        
+
+        String input = JOptionPane.showInputDialog(frame, "Enter Maximum Walk Length:", "Generate Walks", JOptionPane.QUESTION_MESSAGE);
+        if (input == null) return;
+
+        int maxLen = 4;
+        try {
+            maxLen = Integer.parseInt(input.trim());
+            if (maxLen < 1) maxLen = 4;
+        } catch (NumberFormatException e) {
+            maxLen = 4;
+        }
+
         PrintStream origOut = System.out;
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         System.setOut(new PrintStream(baos));
 
-        gP.generateWalks(vertexList, 4);
+        gP.generateWalks(vertexList, maxLen);
 
         System.setOut(origOut);
-        showPopupModal("Generated Graph Walks (Length ≤ 4)", baos.toString());
+        showPopupModal("Generated Graph Walks (Length ≤ " + maxLen + ")", baos.toString());
     }
 
     private void generateTrails() {
         if (vertexList.isEmpty()) return;
 
+        String input = JOptionPane.showInputDialog(frame, "Enter Maximum Trail Length:", "Generate Trails", JOptionPane.QUESTION_MESSAGE);
+        if (input == null) return;
+
+        int maxLen = 4;
+        try {
+            maxLen = Integer.parseInt(input.trim());
+            if (maxLen < 1) maxLen = 4;
+        } catch (NumberFormatException e) {
+            maxLen = 4;
+        }
+
         PrintStream origOut = System.out;
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         System.setOut(new PrintStream(baos));
 
-        gP.generateTrails(vertexList, 4);
+        gP.generateTrails(vertexList, maxLen);
 
         System.setOut(origOut);
-        showPopupModal("Generated Graph Trails (Length ≤ 4)", baos.toString());
+        showPopupModal("Generated Graph Trails (Length ≤ " + maxLen + ")", baos.toString());
     }
 
     private void showPopupModal(String title, String content) {
@@ -382,19 +473,22 @@ public class Canvas {
         propertyLines.clear();
         if (vertexList.isEmpty()) return;
 
-        int[][] matrix = gP.generateAdjacencyMatrix(vertexList, edgeList);
+        double[][] matrix = gP.generateAdjacencyMatrix(vertexList, edgeList);
         Vector<Vertex> tempList = gP.vertexConnectivity(vertexList);
         for (Vertex v : tempList) {
             vertexList.get(vertexList.indexOf(v)).wasClicked = true;
         }
 
-        gP.generateDistanceMatrix(vertexList);
+        gP.generateDistanceMatrix(vertexList, edgeList);
 
         propertyLines.add("• Order |V| = " + vertexList.size() + "    Size |E| = " + edgeList.size());
         propertyLines.add("• Components k(G) = " + gP.countComponents(vertexList) + "    Connected: " + (gP.isConnected(vertexList) ? "Yes" : "No"));
         propertyLines.add("• Connectivity K(G) = " + tempList.size() + "    Edge Connectivity = " + gP.calculateEdgeConnectivity(vertexList, edgeList));
         propertyLines.add("• Density = " + String.format("%.4f", gP.calculateDensity(vertexList, edgeList)) + " (" + gP.classifyDensity(vertexList, edgeList) + ")");
         propertyLines.add("• Graph Completeness: " + (gP.isComplete(vertexList, edgeList) ? "Complete (K_" + vertexList.size() + ")" : "Incomplete (" + gP.getMissingEdges(vertexList, edgeList).size() + " edges missing)"));
+        propertyLines.add("• Cycle Status: " + gP.checkCyclic(vertexList, edgeList));
+        propertyLines.add("• Eulerian Status: " + gP.checkEulerian(vertexList, edgeList));
+        propertyLines.add("• Hamiltonian Status: " + gP.checkHamiltonian(vertexList, edgeList));
 
         StringBuilder names = new StringBuilder();
         Vector<Vertex> isolatedNodes = gP.findIsolatedNodes(vertexList);
@@ -511,11 +605,17 @@ public class Canvas {
             g2.setColor(CARD_BORDER);
             g2.drawLine(220, 0, 220, getHeight());
 
-            g2.setColor(ACCENT_CYAN);
-            g2.fillRoundRect(20, 25, 10, 24, 6, 6);
+            // --- DRAW APPLICATION LOGO IN SIDEBAR HEADER ---
+            if (appLogo != null) {
+                g2.drawImage(appLogo, 18, 22, 28, 28, null);
+            } else {
+                g2.setColor(ACCENT_CYAN);
+                g2.fillRoundRect(20, 25, 10, 24, 6, 6);
+            }
+
             g2.setColor(TEXT_PRIMARY);
             g2.setFont(new Font("Segoe UI", Font.BOLD, 20));
-            g2.drawString("GraphStudio", 38, 44);
+            g2.drawString("GraphStudio", 52, 44); // Shifted text slightly right to complement logo
 
             g2.setFont(new Font("Segoe UI", Font.BOLD, 10));
             g2.setColor(TEXT_MUTED);
@@ -583,10 +683,10 @@ public class Canvas {
             g2.setColor(CARD_BORDER);
             g2.drawRoundRect(startX - 5, toolbarY, totalWidth + 10, toolbarHeight, 14, 14);
 
-            int totalButtons = 13;
-            int gap = 6;
+            int totalButtons = 14;
+            int gap = 5;
             int btnWidth = (totalWidth - (gap * (totalButtons + 1))) / totalButtons;
-            btnWidth = Math.max(50, btnWidth);
+            btnWidth = Math.max(45, btnWidth);
 
             toolBounds.clear();
             actionBounds.clear();
@@ -595,7 +695,6 @@ public class Canvas {
             int btnY = toolbarY + 5;
             int btnH = 32;
 
-            // 1. Tool Buttons
             String[] toolLabels = {"+ Node", "+ Edge", "Move", "Delete"};
             for (int i = 0; i < toolLabels.length; i++) {
                 Rectangle r = new Rectangle(currentX, btnY, btnWidth, btnH);
@@ -604,7 +703,6 @@ public class Canvas {
                 currentX += btnWidth + gap;
             }
 
-            // 2. Directed Mode Button
             directedBounds = new Rectangle(currentX, btnY, btnWidth, btnH);
             if (directedMode) {
                 g2.setColor(ACCENT_PINK);
@@ -618,7 +716,19 @@ public class Canvas {
             drawCenteredString(g2, "Directed", directedBounds);
             currentX += btnWidth + gap;
 
-            // 3. Action Buttons
+            weightedBounds = new Rectangle(currentX, btnY, btnWidth, btnH);
+            if (weightedMode) {
+                g2.setColor(ACCENT_CYAN);
+                g2.fillRoundRect(weightedBounds.x, weightedBounds.y, weightedBounds.width, weightedBounds.height, 10, 10);
+                g2.setColor(BG_DARK);
+            } else {
+                g2.setColor(CARD_BORDER);
+                g2.drawRoundRect(weightedBounds.x, weightedBounds.y, weightedBounds.width, weightedBounds.height, 10, 10);
+                g2.setColor(TEXT_MUTED);
+            }
+            drawCenteredString(g2, "Weighted", weightedBounds);
+            currentX += btnWidth + gap;
+
             String[] actionLabels = {"Arrange", "Isolated", "Cutpoints", "Bridges", "Walks", "Trails", "Complete"};
             for (int i = 0; i < actionLabels.length; i++) {
                 Rectangle r = new Rectangle(currentX, btnY, btnWidth, btnH);
@@ -627,7 +737,6 @@ public class Canvas {
                 currentX += btnWidth + gap;
             }
 
-            // 4. Clear Button
             clearBounds = new Rectangle(currentX, btnY, btnWidth, btnH);
             g2.setColor(ACCENT_PINK);
             drawCenteredString(g2, "Clear", clearBounds);
@@ -823,7 +932,6 @@ public class Canvas {
             int histogramWidth = (int) (totalWidth * 0.52);
             int previewWidth = totalWidth - histogramWidth - gap;
 
-            // 1. Histogram Card
             g2.setColor(CARD_BG);
             g2.fillRoundRect(250, 125, histogramWidth, panelHeight, 16, 16);
             g2.setColor(CARD_BORDER);
@@ -877,7 +985,6 @@ public class Canvas {
                 }
             }
 
-            // 2. Interactive Degree Preview Card (Right Side)
             int previewX = 250 + histogramWidth + gap;
             drawInteractiveDegreePreview(g2, previewX, 125, previewWidth, panelHeight);
         }
@@ -892,7 +999,6 @@ public class Canvas {
             g2.setFont(new Font("Segoe UI", Font.BOLD, 15));
             g2.drawString("Degree Highlight Preview", x + 20, y + 30);
 
-            // Filter Status Badge
             String badgeText = (selectedDegreeFilter == -1) ? "SHOWING ALL" : ("FILTER: k = " + selectedDegreeFilter);
             g2.setColor(selectedDegreeFilter == -1 ? new Color(0, 210, 255, 30) : new Color(255, 51, 102, 40));
             g2.fillRoundRect(x + width - 130, y + 14, 110, 22, 6, 6);
@@ -915,7 +1021,6 @@ public class Canvas {
             int ph = height - 55;
             g2.clipRect(px, py, pw, ph);
 
-            // Compute Graph Bounds
             int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE;
             int maxX = Integer.MIN_VALUE, maxY = Integer.MIN_VALUE;
 
@@ -936,7 +1041,6 @@ public class Canvas {
             int offsetX = px + (pw - (int) (graphW * scale)) / 2;
             int offsetY = py + (ph - (int) (graphH * scale)) / 2;
 
-            // Draw Edges (Dimmed if filtering active)
             g2.setColor(selectedDegreeFilter == -1 ? new Color(90, 105, 135) : new Color(50, 60, 80));
             g2.setStroke(new BasicStroke(1.5f));
             for (Edge e : edgeList) {
@@ -947,7 +1051,6 @@ public class Canvas {
                 g2.drawLine(x1, y1, x2, y2);
             }
 
-            // Draw Scaled Vertices with Highlight for Selected Degree
             int nodeRadius = Math.max(10, (int) (16 * Math.max(0.6, scale)));
             Font nodeFont = new Font("Segoe UI", Font.BOLD, Math.max(10, (int) (12 * scale)));
             g2.setFont(nodeFont);
@@ -959,7 +1062,6 @@ public class Canvas {
                 boolean matchesDegree = (selectedDegreeFilter == -1) || (v.getDegree() == selectedDegreeFilter);
 
                 if (matchesDegree) {
-                    // Outer Glowing Ring for Highlighted Nodes
                     if (selectedDegreeFilter != -1) {
                         g2.setColor(new Color(255, 51, 102, 100));
                         g2.fillOval(vx - nodeRadius - 6, vy - nodeRadius - 6, (nodeRadius + 6) * 2, (nodeRadius + 6) * 2);
@@ -973,7 +1075,6 @@ public class Canvas {
 
                     g2.setColor(TEXT_PRIMARY);
                 } else {
-                    // Muted/Dimmed Non-Matching Nodes
                     g2.setColor(new Color(50, 60, 80));
                     g2.fillOval(vx - nodeRadius, vy - nodeRadius, nodeRadius * 2, nodeRadius * 2);
 

@@ -7,6 +7,7 @@ import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Stroke;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -16,8 +17,8 @@ import java.util.Vector;
 
 public class GraphProperties {
 
-    public int[][] adjacencyMatrix;
-    public int[][] distanceMatrix;
+    public double[][] adjacencyMatrix;
+    public double[][] distanceMatrix;
     public Vector<VertexPair> vpList;
 
     // --- Graph Completeness & Missing Edges ---
@@ -58,7 +59,7 @@ public class GraphProperties {
         if (missing.isEmpty()) return;
 
         Graphics2D g2 = (Graphics2D) g;
-        g2.setColor(new Color(46, 204, 113)); // Bright Vibrant Green
+        g2.setColor(new Color(46, 204, 113));
 
         Stroke originalStroke = g2.getStroke();
         float[] dashPattern = {8.0f, 6.0f};
@@ -72,46 +73,247 @@ public class GraphProperties {
         g2.setStroke(originalStroke);
     }
 
-    // --- Standard Methods ---
+    // --- Cyclic vs Acyclic Detection ---
 
-    public int[][] generateAdjacencyMatrix(Vector<Vertex> vList, Vector<Edge> eList) {
-        adjacencyMatrix = new int[vList.size()][vList.size()];
-        for (int a = 0; a < vList.size(); a++) {
-            for (int b = 0; b < vList.size(); b++) {
-                adjacencyMatrix[a][b] = 0;
+    public String checkCyclic(Vector<Vertex> vList, Vector<Edge> eList) {
+        if (vList.isEmpty()) return "Empty Graph";
+
+        boolean isDirected = false;
+        for (Edge e : eList) {
+            if (e.directed) {
+                isDirected = true;
+                break;
             }
         }
-        for (int i = 0; i < eList.size(); i++) {
-            int idx1 = vList.indexOf(eList.get(i).vertex1);
-            int idx2 = vList.indexOf(eList.get(i).vertex2);
+
+        if (isDirected) {
+            return isDirectedCyclic(vList, eList) ? "Cyclic (Directed Graph with Cycles)" : "Acyclic (DAG)";
+        } else {
+            return isUndirectedCyclic(vList, eList) ? "Cyclic" : "Acyclic (Forest/Tree)";
+        }
+    }
+
+    private boolean isUndirectedCyclic(Vector<Vertex> vList, Vector<Edge> eList) {
+        Vector<Vertex> visited = new Vector<Vertex>();
+        for (Vertex v : vList) {
+            if (!visited.contains(v)) {
+                if (dfsUndirectedCycle(v, null, visited, vList, eList)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private boolean dfsUndirectedCycle(Vertex current, Vertex parent, Vector<Vertex> visited, Vector<Vertex> vList, Vector<Edge> eList) {
+        visited.add(current);
+        for (Vertex neighbor : getNeighbors(current, eList, false)) {
+            if (!visited.contains(neighbor)) {
+                if (dfsUndirectedCycle(neighbor, current, visited, vList, eList)) {
+                    return true;
+                }
+            } else if (neighbor != parent) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isDirectedCyclic(Vector<Vertex> vList, Vector<Edge> eList) {
+        Vector<Vertex> visited = new Vector<Vertex>();
+        Vector<Vertex> recStack = new Vector<Vertex>();
+
+        for (Vertex v : vList) {
+            if (!visited.contains(v)) {
+                if (dfsDirectedCycle(v, visited, recStack, eList)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private boolean dfsDirectedCycle(Vertex current, Vector<Vertex> visited, Vector<Vertex> recStack, Vector<Edge> eList) {
+        visited.add(current);
+        recStack.add(current);
+
+        for (Vertex neighbor : getNeighbors(current, eList, true)) {
+            if (!visited.contains(neighbor)) {
+                if (dfsDirectedCycle(neighbor, visited, recStack, eList)) {
+                    return true;
+                }
+            } else if (recStack.contains(neighbor)) {
+                return true;
+            }
+        }
+
+        recStack.remove(current);
+        return false;
+    }
+
+    private Vector<Vertex> getNeighbors(Vertex v, Vector<Edge> eList, boolean directedOnly) {
+        Vector<Vertex> neighbors = new Vector<Vertex>();
+        for (Edge e : eList) {
+            if (e.vertex1 == v) {
+                neighbors.add(e.vertex2);
+            } else if (!directedOnly && e.vertex2 == v) {
+                neighbors.add(e.vertex1);
+            }
+        }
+        return neighbors;
+    }
+
+    // --- Weighted Adjacency & Shortest Path (Floyd-Warshall) ---
+
+    public double[][] generateAdjacencyMatrix(Vector<Vertex> vList, Vector<Edge> eList) {
+        int n = vList.size();
+        adjacencyMatrix = new double[n][n];
+        for (int i = 0; i < n; i++) Arrays.fill(adjacencyMatrix[i], 0.0);
+
+        for (Edge e : eList) {
+            int idx1 = vList.indexOf(e.vertex1);
+            int idx2 = vList.indexOf(e.vertex2);
             if (idx1 != -1 && idx2 != -1) {
-                adjacencyMatrix[idx1][idx2] = 1;
-                if (!eList.get(i).directed) {
-                    adjacencyMatrix[idx2][idx1] = 1;
+                adjacencyMatrix[idx1][idx2] = e.weight;
+                if (!e.directed) {
+                    adjacencyMatrix[idx2][idx1] = e.weight;
                 }
             }
         }
         return adjacencyMatrix;
     }
 
-    public int[][] generateDistanceMatrix(Vector<Vertex> vList) {
-        distanceMatrix = new int[vList.size()][vList.size()];
-        for (int a = 0; a < vList.size(); a++) {
-            for (int b = 0; b < vList.size(); b++) {
-                distanceMatrix[a][b] = 0;
+    public double[][] generateDistanceMatrix(Vector<Vertex> vList, Vector<Edge> eList) {
+        int n = vList.size();
+        distanceMatrix = new double[n][n];
+
+        for (int i = 0; i < n; i++) {
+            for (int j = 0; j < n; j++) {
+                if (i == j) distanceMatrix[i][j] = 0;
+                else distanceMatrix[i][j] = Double.POSITIVE_INFINITY;
             }
         }
-        VertexPair vp;
-        int shortestDistance;
-        for (int i = 0; i < vList.size(); i++) {
-            for (int j = i + 1; j < vList.size(); j++) {
-                vp = new VertexPair(vList.get(i), vList.get(j));
-                shortestDistance = vp.getShortestDistance();
-                distanceMatrix[vList.indexOf(vp.vertex1)][vList.indexOf(vp.vertex2)] = shortestDistance;
-                distanceMatrix[vList.indexOf(vp.vertex2)][vList.indexOf(vp.vertex1)] = shortestDistance;
+
+        for (Edge e : eList) {
+            int u = vList.indexOf(e.vertex1);
+            int v = vList.indexOf(e.vertex2);
+            if (u != -1 && v != -1) {
+                distanceMatrix[u][v] = Math.min(distanceMatrix[u][v], e.weight);
+                if (!e.directed) {
+                    distanceMatrix[v][u] = Math.min(distanceMatrix[v][u], e.weight);
+                }
+            }
+        }
+
+        // Floyd-Warshall Algorithm for Shortest Paths
+        for (int k = 0; k < n; k++) {
+            for (int i = 0; i < n; i++) {
+                for (int j = 0; j < n; j++) {
+                    if (distanceMatrix[i][k] + distanceMatrix[k][j] < distanceMatrix[i][j]) {
+                        distanceMatrix[i][j] = distanceMatrix[i][k] + distanceMatrix[k][j];
+                    }
+                }
             }
         }
         return distanceMatrix;
+    }
+
+    // --- Eulerian & Hamiltonian Checks ---
+
+    public String checkEulerian(Vector<Vertex> vList, Vector<Edge> eList) {
+        if (vList.isEmpty()) return "Empty Graph";
+        if (!isConnected(vList)) {
+            int nonIsolated = 0;
+            for (Vertex v : vList) {
+                if (v.getDegree() > 0) nonIsolated++;
+            }
+            if (nonIsolated > 1) return "Non-Eulerian (Disconnected)";
+        }
+
+        boolean isDirected = false;
+        for (Edge e : eList) {
+            if (e.directed) {
+                isDirected = true;
+                break;
+            }
+        }
+
+        if (isDirected) {
+            int startNodes = 0, endNodes = 0;
+            for (Vertex v : vList) {
+                int in = getInDegree(v, eList);
+                int out = getOutDegree(v, eList);
+                if (out - in == 1) startNodes++;
+                else if (in - out == 1) endNodes++;
+                else if (in != out) return "Non-Eulerian";
+            }
+            if (startNodes == 0 && endNodes == 0) return "Eulerian Circuit";
+            if (startNodes == 1 && endNodes == 1) return "Semi-Eulerian (Eulerian Path)";
+            return "Non-Eulerian";
+        } else {
+            int oddDegreeCount = 0;
+            for (Vertex v : vList) {
+                if (v.getDegree() % 2 != 0) oddDegreeCount++;
+            }
+            if (oddDegreeCount == 0) return "Eulerian Circuit";
+            if (oddDegreeCount == 2) return "Semi-Eulerian (Eulerian Path)";
+            return "Non-Eulerian (" + oddDegreeCount + " odd degree vertices)";
+        }
+    }
+
+    public String checkHamiltonian(Vector<Vertex> vList, Vector<Edge> eList) {
+        int n = vList.size();
+        if (n == 0) return "Empty Graph";
+        if (n == 1) return "Hamiltonian Cycle & Path";
+        if (n == 2) {
+            return (eList.size() >= 1) ? "Semi-Hamiltonian (Hamiltonian Path)" : "Non-Hamiltonian";
+        }
+
+        double[][] adj = generateAdjacencyMatrix(vList, eList);
+
+        for (int i = 0; i < n; i++) {
+            boolean[] visited = new boolean[n];
+            visited[i] = true;
+            if (hamiltonianCycleUtil(adj, visited, i, i, 1, n)) {
+                return "Hamiltonian Cycle";
+            }
+        }
+
+        for (int i = 0; i < n; i++) {
+            boolean[] visited = new boolean[n];
+            visited[i] = true;
+            if (hamiltonianPathUtil(adj, visited, i, 1, n)) {
+                return "Semi-Hamiltonian (Hamiltonian Path)";
+            }
+        }
+
+        return "Non-Hamiltonian";
+    }
+
+    private boolean hamiltonianCycleUtil(double[][] adj, boolean[] visited, int current, int start, int count, int n) {
+        if (count == n) {
+            return adj[current][start] > 0;
+        }
+        for (int v = 0; v < n; v++) {
+            if (adj[current][v] > 0 && !visited[v]) {
+                visited[v] = true;
+                if (hamiltonianCycleUtil(adj, visited, v, start, count + 1, n)) return true;
+                visited[v] = false;
+            }
+        }
+        return false;
+    }
+
+    private boolean hamiltonianPathUtil(double[][] adj, boolean[] visited, int current, int count, int n) {
+        if (count == n) return true;
+        for (int v = 0; v < n; v++) {
+            if (adj[current][v] > 0 && !visited[v]) {
+                visited[v] = true;
+                if (hamiltonianPathUtil(adj, visited, v, count + 1, n)) return true;
+                visited[v] = false;
+            }
+        }
+        return false;
     }
 
     public Map<Integer, Integer> getDegreeDistribution(Vector<Vertex> vList) {
@@ -132,38 +334,6 @@ public class GraphProperties {
         return totalDegree / vList.size();
     }
 
-    public void displayContainers(Vector<Vertex> vList) {
-        vpList = new Vector<VertexPair>();
-        int[] kWideGraph = new int[10];
-        for (int i = 0; i < kWideGraph.length; i++) {
-            kWideGraph[i] = -1;
-        }
-
-        VertexPair vp;
-        for (int a = 0; a < vList.size(); a++) {
-            for (int b = a + 1; b < vList.size(); b++) {
-                vp = new VertexPair(vList.get(a), vList.get(b));
-                vpList.add(vp);
-                int longestWidth = 0;
-                vp.generateVertexDisjointPaths();
-                for (int i = 0; i < vp.VertexDisjointContainer.size(); i++) {
-                    int width = vp.VertexDisjointContainer.get(i).size();
-                    Collections.sort(vp.VertexDisjointContainer.get(i), new descendingWidthComparator());
-                    longestWidth = Math.max(longestWidth, width);
-                }
-                for (int k = 1; k <= longestWidth; k++) {
-                    int minLength = 999;
-                    for (int m = 0; m < vp.VertexDisjointContainer.size(); m++) {
-                        minLength = Math.min(minLength, vp.VertexDisjointContainer.get(m).size());
-                    }
-                    if (minLength != 999) {
-                        kWideGraph[k] = Math.max(kWideGraph[k], minLength);
-                    }
-                }
-            }
-        }
-    }
-
     public void drawAdjacencyMatrix(Graphics g, Vector<Vertex> vList, int x, int y, int cardWidth, int cardHeight) {
         drawMatrixCard(g, vList, x, y, cardWidth, cardHeight, "Adjacency Matrix", adjacencyMatrix);
     }
@@ -172,16 +342,14 @@ public class GraphProperties {
         drawMatrixCard(g, vList, x, y, cardWidth, cardHeight, "Shortest Path Matrix", distanceMatrix);
     }
 
-    private void drawMatrixCard(Graphics g, Vector<Vertex> vList, int x, int y, int width, int height, String title, int[][] matrix) {
+    private void drawMatrixCard(Graphics g, Vector<Vertex> vList, int x, int y, int width, int height, String title, double[][] matrix) {
         Graphics2D g2 = (Graphics2D) g;
 
-        // Card Container
         g2.setColor(Canvas.CARD_BG);
         g2.fillRoundRect(x, y, width, height, 16, 16);
         g2.setColor(Canvas.CARD_BORDER);
         g2.drawRoundRect(x, y, width, height, 16, 16);
 
-        // Header Title
         g2.setColor(Canvas.ACCENT_CYAN);
         g2.setFont(new Font("Segoe UI", Font.BOLD, 15));
         g2.drawString(title, x + 20, y + 30);
@@ -202,7 +370,6 @@ public class GraphProperties {
         int startX = x + 25;
         int startY = y + 55;
 
-        // Draw Column Headers
         g2.setFont(new Font("Segoe UI", Font.BOLD, 12));
         g2.setColor(Canvas.ACCENT_PINK);
         FontMetrics fm = g2.getFontMetrics();
@@ -214,11 +381,9 @@ public class GraphProperties {
             g2.drawString(colLabel, cx, cy);
         }
 
-        // Draw Rows and Matrix Cells
         for (int i = 0; i < n; i++) {
             int rowY = startY + (i + 1) * cellSize;
 
-            // Row Header
             g2.setColor(Canvas.ACCENT_PINK);
             g2.setFont(new Font("Segoe UI", Font.BOLD, 12));
             String rowLabel = vList.get(i).name;
@@ -226,16 +391,18 @@ public class GraphProperties {
             int ry = rowY + (cellSize + fm.getAscent()) / 2 - 2;
             g2.drawString(rowLabel, rx, ry);
 
-            // Matrix Values
-            g2.setFont(new Font("Consolas", Font.PLAIN, 13));
+            g2.setFont(new Font("Consolas", Font.PLAIN, 12));
             fm = g2.getFontMetrics();
 
             for (int j = 0; j < n; j++) {
                 if (i < matrix.length && j < matrix[i].length) {
-                    int val = matrix[i][j];
-                    String valStr = (val == -1) ? "∞" : String.valueOf(val);
+                    double val = matrix[i][j];
+                    String valStr;
+                    if (Double.isInfinite(val)) valStr = "∞";
+                    else if (val == (long) val) valStr = String.format("%d", (long) val);
+                    else valStr = String.format("%.1f", val);
 
-                    if (val > 0) g2.setColor(Canvas.TEXT_PRIMARY);
+                    if (val > 0 && !Double.isInfinite(val)) g2.setColor(Canvas.TEXT_PRIMARY);
                     else g2.setColor(Canvas.TEXT_MUTED);
 
                     int vx = startX + (j + 1) * cellSize + (cellSize - fm.stringWidth(valStr)) / 2;
@@ -340,14 +507,6 @@ public class GraphProperties {
             }
         }
         return reachable;
-    }
-
-    private class descendingWidthComparator implements Comparator {
-        public int compare(Object v1, Object v2) {
-            if (((Vector<Vertex>) v1).size() > (((Vector<Vertex>) v2).size())) return -1;
-            else if (((Vector<Vertex>) v1).size() < (((Vector<Vertex>) v2).size())) return 1;
-            else return 0;
-        }
     }
 
     public Vector<Vertex> findIsolatedNodes(Vector<Vertex> vList) {
@@ -469,26 +628,6 @@ public class GraphProperties {
             if (countComponents(vList, null, e) > baseComponents) bridges.add(e);
         }
         return bridges;
-    }
-
-    public void printGeodesics(Vector<Vertex> vList) {
-        System.out.println("=== CONNECTEDNESS & GEODESICS ===");
-        for (int i = 0; i < vList.size(); i++) {
-            for (int j = i + 1; j < vList.size(); j++) {
-                VertexPair vp = new VertexPair(vList.get(i), vList.get(j));
-                Vector<Vertex> geodesic = vp.getShortestPath();
-                System.out.print(vList.get(i).name + "-" + vList.get(j).name + ": ");
-                if (geodesic == null) {
-                    System.out.println("not connected (unreachable)");
-                } else {
-                    System.out.print("connected, geodesic ");
-                    for (int k = 0; k < geodesic.size(); k++) {
-                        System.out.print((k > 0 ? "-" : "") + geodesic.get(k).name);
-                    }
-                    System.out.println(", distance " + (geodesic.size() - 1));
-                }
-            }
-        }
     }
 
     public void generateWalks(Vector<Vertex> vList, int maxLength) {
