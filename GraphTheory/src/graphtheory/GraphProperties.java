@@ -1,7 +1,12 @@
 package graphtheory;
 
+import java.awt.BasicStroke;
 import java.awt.Color;
+import java.awt.Font;
+import java.awt.FontMetrics;
 import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.Stroke;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -14,6 +19,60 @@ public class GraphProperties {
     public int[][] adjacencyMatrix;
     public int[][] distanceMatrix;
     public Vector<VertexPair> vpList;
+
+    // --- Graph Completeness & Missing Edges ---
+
+    public boolean isComplete(Vector<Vertex> vList, Vector<Edge> eList) {
+        if (vList.size() <= 1) return true;
+        return getMissingEdges(vList, eList).isEmpty();
+    }
+
+    public Vector<VertexPair> getMissingEdges(Vector<Vertex> vList, Vector<Edge> eList) {
+        Vector<VertexPair> missing = new Vector<VertexPair>();
+        int n = vList.size();
+        if (n < 2) return missing;
+
+        for (int i = 0; i < n; i++) {
+            for (int j = i + 1; j < n; j++) {
+                Vertex u = vList.get(i);
+                Vertex v = vList.get(j);
+
+                boolean edgeExists = false;
+                for (Edge e : eList) {
+                    if ((e.vertex1 == u && e.vertex2 == v) || (e.vertex1 == v && e.vertex2 == u)) {
+                        edgeExists = true;
+                        break;
+                    }
+                }
+
+                if (!edgeExists) {
+                    missing.add(new VertexPair(u, v));
+                }
+            }
+        }
+        return missing;
+    }
+
+    public void drawMissingEdges(Graphics g, Vector<Vertex> vList, Vector<Edge> eList) {
+        Vector<VertexPair> missing = getMissingEdges(vList, eList);
+        if (missing.isEmpty()) return;
+
+        Graphics2D g2 = (Graphics2D) g;
+        g2.setColor(new Color(46, 204, 113)); // Bright Vibrant Green
+
+        Stroke originalStroke = g2.getStroke();
+        float[] dashPattern = {8.0f, 6.0f};
+        g2.setStroke(new BasicStroke(2.0f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 10.0f, dashPattern, 0.0f));
+
+        for (VertexPair pair : missing) {
+            g2.drawLine(pair.vertex1.location.x, pair.vertex1.location.y,
+                        pair.vertex2.location.x, pair.vertex2.location.y);
+        }
+
+        g2.setStroke(originalStroke);
+    }
+
+    // --- Standard Methods ---
 
     public int[][] generateAdjacencyMatrix(Vector<Vertex> vList, Vector<Edge> eList) {
         adjacencyMatrix = new int[vList.size()][vList.size()];
@@ -55,7 +114,6 @@ public class GraphProperties {
         return distanceMatrix;
     }
 
-    // Degree Distribution Calculations
     public Map<Integer, Integer> getDegreeDistribution(Vector<Vertex> vList) {
         Map<Integer, Integer> dist = new HashMap<Integer, Integer>();
         for (Vertex v : vList) {
@@ -106,41 +164,83 @@ public class GraphProperties {
         }
     }
 
-    public void drawAdjacencyMatrix(Graphics g, Vector<Vertex> vList, int x, int y) {
-        int cSize = 22;
-        g.setColor(new Color(38, 42, 58));
-        g.fillRect(x, y - 30, vList.size() * cSize + cSize + 20, vList.size() * cSize + cSize + 20);
-        g.setColor(new Color(0, 229, 255));
-        g.drawString("Adjacency Matrix", x + 10, y - 10);
-
-        for (int i = 0; i < vList.size(); i++) {
-            g.setColor(new Color(255, 64, 129));
-            g.drawString(vList.get(i).name, x + cSize + i * cSize, y + 15);
-            g.drawString(vList.get(i).name, x + 10, cSize + i * cSize + y + 15);
-            g.setColor(Color.WHITE);
-            for (int j = 0; j < vList.size(); j++) {
-                if (adjacencyMatrix != null && i < adjacencyMatrix.length && j < adjacencyMatrix[i].length) {
-                    g.drawString("" + adjacencyMatrix[i][j], x + cSize * (j + 1), y + cSize * (i + 1) + 15);
-                }
-            }
-        }
+    public void drawAdjacencyMatrix(Graphics g, Vector<Vertex> vList, int x, int y, int cardWidth, int cardHeight) {
+        drawMatrixCard(g, vList, x, y, cardWidth, cardHeight, "Adjacency Matrix", adjacencyMatrix);
     }
 
-    public void drawDistanceMatrix(Graphics g, Vector<Vertex> vList, int x, int y) {
-        int cSize = 22;
-        g.setColor(new Color(38, 42, 58));
-        g.fillRect(x, y - 30, vList.size() * cSize + cSize + 20, vList.size() * cSize + cSize + 20);
-        g.setColor(new Color(0, 229, 255));
-        g.drawString("Shortest Path Matrix", x + 10, y - 10);
+    public void drawDistanceMatrix(Graphics g, Vector<Vertex> vList, int x, int y, int cardWidth, int cardHeight) {
+        drawMatrixCard(g, vList, x, y, cardWidth, cardHeight, "Shortest Path Matrix", distanceMatrix);
+    }
 
-        for (int i = 0; i < vList.size(); i++) {
-            g.setColor(new Color(255, 64, 129));
-            g.drawString(vList.get(i).name, x + cSize + i * cSize, y + 15);
-            g.drawString(vList.get(i).name, x + 10, cSize + i * cSize + y + 15);
-            g.setColor(Color.WHITE);
-            for (int j = 0; j < vList.size(); j++) {
-                if (distanceMatrix != null && i < distanceMatrix.length && j < distanceMatrix[i].length) {
-                    g.drawString("" + distanceMatrix[i][j], x + cSize * (j + 1), y + cSize * (i + 1) + 15);
+    private void drawMatrixCard(Graphics g, Vector<Vertex> vList, int x, int y, int width, int height, String title, int[][] matrix) {
+        Graphics2D g2 = (Graphics2D) g;
+
+        // Card Container
+        g2.setColor(Canvas.CARD_BG);
+        g2.fillRoundRect(x, y, width, height, 16, 16);
+        g2.setColor(Canvas.CARD_BORDER);
+        g2.drawRoundRect(x, y, width, height, 16, 16);
+
+        // Header Title
+        g2.setColor(Canvas.ACCENT_CYAN);
+        g2.setFont(new Font("Segoe UI", Font.BOLD, 15));
+        g2.drawString(title, x + 20, y + 30);
+
+        if (vList.isEmpty() || matrix == null) {
+            g2.setColor(Canvas.TEXT_MUTED);
+            g2.setFont(new Font("Segoe UI", Font.ITALIC, 13));
+            g2.drawString("No graph data available", x + 20, y + 65);
+            return;
+        }
+
+        int n = vList.size();
+        int availableW = width - 60;
+        int availableH = height - 70;
+        int cellSize = Math.min(32, Math.min(availableW / (n + 1), availableH / (n + 1)));
+        cellSize = Math.max(22, cellSize);
+
+        int startX = x + 25;
+        int startY = y + 55;
+
+        // Draw Column Headers
+        g2.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        g2.setColor(Canvas.ACCENT_PINK);
+        FontMetrics fm = g2.getFontMetrics();
+
+        for (int j = 0; j < n; j++) {
+            String colLabel = vList.get(j).name;
+            int cx = startX + (j + 1) * cellSize + (cellSize - fm.stringWidth(colLabel)) / 2;
+            int cy = startY + (cellSize + fm.getAscent()) / 2 - 2;
+            g2.drawString(colLabel, cx, cy);
+        }
+
+        // Draw Rows and Matrix Cells
+        for (int i = 0; i < n; i++) {
+            int rowY = startY + (i + 1) * cellSize;
+
+            // Row Header
+            g2.setColor(Canvas.ACCENT_PINK);
+            g2.setFont(new Font("Segoe UI", Font.BOLD, 12));
+            String rowLabel = vList.get(i).name;
+            int rx = startX + (cellSize - fm.stringWidth(rowLabel)) / 2;
+            int ry = rowY + (cellSize + fm.getAscent()) / 2 - 2;
+            g2.drawString(rowLabel, rx, ry);
+
+            // Matrix Values
+            g2.setFont(new Font("Consolas", Font.PLAIN, 13));
+            fm = g2.getFontMetrics();
+
+            for (int j = 0; j < n; j++) {
+                if (i < matrix.length && j < matrix[i].length) {
+                    int val = matrix[i][j];
+                    String valStr = (val == -1) ? "∞" : String.valueOf(val);
+
+                    if (val > 0) g2.setColor(Canvas.TEXT_PRIMARY);
+                    else g2.setColor(Canvas.TEXT_MUTED);
+
+                    int vx = startX + (j + 1) * cellSize + (cellSize - fm.stringWidth(valStr)) / 2;
+                    int vy = rowY + (cellSize + fm.getAscent()) / 2 - 2;
+                    g2.drawString(valStr, vx, vy);
                 }
             }
         }
